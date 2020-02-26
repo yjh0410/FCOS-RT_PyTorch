@@ -17,7 +17,7 @@ class FCOS_LITE(nn.Module):
         self.trainable = trainable
         self.conf_thresh = conf_thresh
         self.nms_thresh = nms_thresh
-        self.location_weight =torch.tensor([[-1, -1, 1, 1]]).float().to(device)
+        self.location_weight =torch.tensor([[-1], [-1], [1], [1]]).float().to(device)
         self.stride = [8, 16, 32]
         self.scale_thresholds = [0, 64, 128, 1e10]
         self.pixel_location = self.set_init()
@@ -54,7 +54,7 @@ class FCOS_LITE(nn.Module):
 
     def set_init(self):
         total = sum([(self.input_size[0] // s) * (self.input_size[1] // s) for s in self.stride])
-        pixel_location = torch.zeros(total, 4).to(self.device)
+        pixel_location = torch.zeros(4, total).to(self.device)
         start_index = 0
         for index in range(len(self.stride)):
             s = self.stride[index]
@@ -67,7 +67,7 @@ class FCOS_LITE(nn.Module):
                     index = x_y + start_index
                     x = xs * s + s / 2
                     y = ys * s + s / 2
-                    pixel_location[index, :] = torch.tensor([x, y, x, y]).float()
+                    pixel_location[:, index] = torch.tensor([[x], [y], [x], [y]]).float()
             start_index += ws * hs
         return pixel_location        
 
@@ -187,9 +187,9 @@ class FCOS_LITE(nn.Module):
             with torch.no_grad():
                 # batch size = 1
                 # Be careful, the index 0 in all_cls is background !!
-                all_cls = torch.sigmoid(total_prediction[:, :1 + self.num_classes, :])[0]
-                all_ctn = torch.sigmoid(total_prediction[:, 1 + self.num_classes : 1 + self.num_classes + 1, :])[0]
-                all_loc = torch.exp(total_prediction[:, 1 + self.num_classes + 1 : , :]) * self.location_weight + self.pixel_location
+                all_cls = torch.sigmoid(total_prediction[0, :1 + self.num_classes, :])
+                all_ctn = torch.sigmoid(total_prediction[0, 1 + self.num_classes : 1 + self.num_classes + 1, :])
+                all_loc = torch.exp(total_prediction[0, 1 + self.num_classes + 1 : , :]) * self.location_weight + self.pixel_location
                 # separate box pred and class conf
                 all_cls = all_cls.to('cpu').numpy()
                 all_ctn = all_ctn.to('cpu').numpy()
