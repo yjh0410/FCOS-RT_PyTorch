@@ -67,7 +67,7 @@ class FCOS_LITE(nn.Module):
                     index = x_y + start_index
                     x = xs * s + s / 2
                     y = ys * s + s / 2
-                    pixel_location[index, :] = torch.tensor([x, x, y, y]).float()
+                    pixel_location[index, :] = torch.tensor([x, y, x, y]).float()
             start_index += ws * hs
         return pixel_location        
 
