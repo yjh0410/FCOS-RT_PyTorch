@@ -37,15 +37,22 @@ class FCOS_LITE(nn.Module):
 
         # detection head
         # All branches share the self.head
-        self.head = nn.Sequential(
-            Conv2d(256, 128, 1, leakyReLU=True),
-            Conv2d(128, 256, 3, padding=1, leakyReLU=True),
-            Conv2d(256, 128, 1, leakyReLU=True),
-            Conv2d(128, 256, 3, padding=1, leakyReLU=True),
-        )
         # 1 is for background label
-        self.pred_cls_ctn = nn.Conv2d(256, 1 + self.num_classes + 1, 1)
-        self.pred_loc = nn.Conv2d(256, 4, 1)
+        self.pred_cls_ctn = nn.Sequential(
+            Conv2d(256, 128, 1, leakyReLU=True),
+            Conv2d(128, 256, 3, padding=1, leakyReLU=True),
+            Conv2d(256, 128, 1, leakyReLU=True),
+            Conv2d(128, 256, 3, padding=1, leakyReLU=True),
+            nn.Conv2d(256, 1 + self.num_classes + 1, 1)
+        )
+
+        self.pred_loc = nn.Sequential(
+            Conv2d(256, 128, 1, leakyReLU=True),
+            Conv2d(128, 256, 3, padding=1, leakyReLU=True),
+            Conv2d(256, 128, 1, leakyReLU=True),
+            Conv2d(128, 256, 3, padding=1, leakyReLU=True),
+            nn.Conv2d(256, 4, 1)
+        )
 
         # adaptive scale for location
         self.s_3 = nn.Conv2d(4, 4, 1)
