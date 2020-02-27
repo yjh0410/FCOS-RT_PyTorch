@@ -73,8 +73,8 @@ def gt_creator(input_size, num_classes, stride, scale_thresholds, label_lists=[]
                         y = ys * s + s // 2
                         if x >= xmin and x <= xmax and y >= ymin and y <= ymax:
                             l = x - xmin
-                            r = xmax - x
                             t = y - ymin
+                            r = xmax - x
                             b = ymax - y
                             # select a appropriate scale for gt dat
                             M = max(l, t, r, b)
@@ -82,9 +82,12 @@ def gt_creator(input_size, num_classes, stride, scale_thresholds, label_lists=[]
                             if M >= scale_thresholds[scale_index] and M < scale_thresholds[scale_index+1]:
                                 index = (ys * ws + xs) + start_index
                                 center_ness = np.sqrt((min(l,r) / max(l,r)) * (min(t,b) / max(t,b)))
+                                # To avoid multi class label, we first clear up all potential class labels
+                                gt_tensor[batch_index, :1+num_classes, index] = np.zeros(1+num_classes)
+                                # then give a new class label
                                 gt_tensor[batch_index, 1 + int(gt_class), index] = 1.0
                                 gt_tensor[batch_index, 1 + num_classes, index] = center_ness
-                                gt_tensor[batch_index, 1 + num_classes + 1 : -1, index] = torch.tensor([l, t, r, b])
+                                gt_tensor[batch_index, 1 + num_classes + 1 : -1, index] = np.array([l, t, r, b])
                                 gt_tensor[batch_index, -1, index] = 1.0
                 start_index += ws * hs
     return gt_tensor
@@ -153,9 +156,21 @@ if __name__ == "__main__":
                     x = xs * s + s // 2
                     y = ys * s + s // 2
                     index = (ys * fmap_size + xs) + start_index
-                    if gt_tensor[:, -1, index] == 1.0:
+                    if gt_tensor[0, -1, index] == 1.0:
+                        l, t, r, b = gt_tensor[0, 1+num_classes+1:-1, index]
+                        xmin = int(x - l)
+                        ymin = int(y - t)
+                        xmax = int(x + r)
+                        ymax = int(y + b)
+                        # print((xmin, ymin), (xmax, ymax))
                         cls_label = np.argmax(gt_tensor[:, :1+num_classes, index], axis=1) - 1
                         cv2.circle(img, (int(x), int(y)), 5, class_color[int(cls_label)], -1)
+                        cv2.rectangle(img, (xmin, ymin), (xmax, ymax), class_color[int(cls_label)], 2)
+                        cv2.rectangle(img, (int(xmin), int(abs(ymin)-15)), (int(xmin+(xmax-xmin)*0.55), int(ymin)), class_color[int(cls_label)], -1)
+                        mess = '%s' % (CLASSES[int(cls_label)])
+                        cv2.putText(img, mess, (int(xmin), int(ymin)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 2)
+                        # cv2.imshow('image', img)
+                        # cv2.waitKey(0)
             start_index += fmap_size * fmap_size
         cv2.imshow('image', img)
         cv2.waitKey(0)
