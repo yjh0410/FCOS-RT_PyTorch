@@ -5,32 +5,6 @@ import torch.nn.functional as F
 
 CLASS_COLOR = [(np.random.randint(255),np.random.randint(255),np.random.randint(255)) for _ in range(len(VOC_CLASSES))]
 
-class BCELoss(nn.Module):
-    def __init__(self, reduction='mean'):
-        super(BCELoss, self).__init__()
-        self.reduction = reduction
-    def forward(self, inputs, targets):
-        pos_id = (targets==1.0).float()
-        neg_id = (1 - pos_id).float()
-        pos_loss = -pos_id * torch.log(inputs + 1e-14)
-        neg_loss = -neg_id * torch.log(1.0 - inputs + 1e-14)
-        pos_num = torch.sum(pos_id, 1)
-        neg_num = torch.sum(neg_id, 1)
-        if self.reduction == 'mean':
-            pos_loss = torch.mean(torch.sum(pos_loss, 1))
-            neg_loss = torch.mean(torch.sum(neg_loss, 1))
-            return pos_loss, neg_loss
-        else:
-            return pos_loss, neg_loss
-
-class MSELoss(nn.Module):
-    def __init__(self):
-        super(MSELoss, self).__init__()
-    def forward(self, inputs, targets):
-        loss = (inputs - targets)**2
-        loss = torch.sum(loss, -1)
-        return loss
-
 class BCE_focal_loss(nn.Module):
     def __init__(self, gamma=2):
         super(BCE_focal_loss, self).__init__()
@@ -118,7 +92,7 @@ def gt_creator(input_size, num_classes, stride, scale_thresholds, label_lists=[]
 def loss(pred, label, num_classes):
     # define loss functions
     cls_loss_func = BCE_focal_loss()
-    ctn_loss_func = MSELoss()
+    ctn_loss_func = nn.MSELoss(reduction='none')
     box_loss_func = nn.BCELoss(reduction='none')
 
     pred_cls = torch.sigmoid(pred[:, :1 + num_classes, :])
@@ -147,7 +121,7 @@ def loss(pred, label, num_classes):
 if __name__ == "__main__":
     stride = [8, 16, 32]
     scale_thresholds = [0, 64, 128, 1e10]
-    input_size = [320, 320]
+    input_size = [416, 416]
     num_classes = 20
     total_fmap_size = [input_size[0] // s for s in stride]
     voc_root = 'C:/YJH-HOST/dataset/VOCdevkit/'
