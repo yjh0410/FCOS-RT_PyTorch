@@ -44,7 +44,8 @@ def gt_creator(input_size, num_classes, stride, scale_thresholds, label_lists=[]
     # 1 = center-ness
     # 4 = l, t, r, b
     # 1 = positive sample
-    gt_tensor = np.zeros([batch_size, 1 + num_classes + 1 + 4 + 1, total])
+    gt_tensor = np.zeros([batch_size, 1 + num_classes + 1 + 4 + 1 + 1, total])
+    gt_tensor[:, 0, :] = 1.0
 
     # generate gt datas
     for batch_index in range(batch_size):
@@ -87,8 +88,10 @@ def gt_creator(input_size, num_classes, stride, scale_thresholds, label_lists=[]
                                 # then give a new class label
                                 gt_tensor[batch_index, 1 + int(gt_class), index] = 1.0
                                 gt_tensor[batch_index, 1 + num_classes, index] = center_ness
-                                gt_tensor[batch_index, 1 + num_classes + 1 : -1, index] = np.array([l, t, r, b])
+                                gt_tensor[batch_index, 1 + num_classes + 1 : -2, index] = np.array([l, t, r, b])
+                                gt_tensor[batch_index, -2, index] = 1.0
                                 gt_tensor[batch_index, -1, index] = 1.0
+                                # print("lalla: ", gt_tensor[batch_index, :, index])
                 start_index += ws * hs
     return gt_tensor
 
@@ -104,9 +107,9 @@ def loss(pred, label, num_classes):
 
     gt_cls = label[:, :1 + num_classes, :].float()
     gt_ctn = label[:, 1 + num_classes, :].float()
-    gt_box = label[:, 1 + num_classes + 1 : -1, :].float()
-    gt_pos = label[:, -1, :]
-    gt_iou = gt_pos.clone()
+    gt_box = label[:, 1 + num_classes + 1 : -2, :].float()
+    gt_pos = label[:, -2, :]
+    gt_iou = label[:, -1, :]
     N_pos = torch.sum(gt_pos, dim=-1)
 
     # cls loss
