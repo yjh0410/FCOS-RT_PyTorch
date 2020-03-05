@@ -111,6 +111,7 @@ def loss(pred, label, num_classes):
     gt_pos = label[:, -2, :]
     gt_iou = label[:, -1, :]
     N_pos = torch.sum(gt_pos, dim=-1)
+    N_pos = torch.max(N_pos, torch.ones(N_pos.size(), device=N_pos.device))
 
     # cls loss
     cls_loss = torch.mean(cls_loss_func(pred_cls, gt_cls) / N_pos)
