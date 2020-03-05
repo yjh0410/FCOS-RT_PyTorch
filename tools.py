@@ -13,7 +13,7 @@ class BCE_focal_loss(nn.Module):
     def forward(self, inputs, targets):
         loss = (1.0-inputs)**self.gamma * (targets) * torch.log(inputs + 1e-14) + \
                 (inputs)**self.gamma * (1.0 - targets) * torch.log(1.0 - inputs + 1e-14)
-        loss = -torch.sum(torch.mean(loss, dim=1), dim=-1)
+        loss = -torch.sum(torch.sum(loss, dim=1), dim=-1)
         return loss
 
 def compute_iou(pred_box, gt_box):
