@@ -72,13 +72,13 @@ def train(model, device):
     else:
         dataset = VOCDetection(root=args.dataset_root, transform=SSDAugmentation(cfg['min_dim'], MEANS))
 
-    # from torch.utils.tensorboard import SummaryWriter
-    # # c_time = time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time()))
-    # log_path = 'log/fcos/voc2007/'# + c_time
-    # if not os.path.exists(log_path):
-    #     os.mkdir(log_path)
+    from torch.utils.tensorboard import SummaryWriter
+    c_time = time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time()))
+    log_path = 'log/fcos/voc2007/' + c_time
+    if not os.path.exists(log_path):
+        os.mkdir(log_path)
 
-    # writer = SummaryWriter(log_path)
+    writer = SummaryWriter(log_path)
     
     print("----------------------------------------Object Detection--------------------------------------------")
     print("Let's train OD network !")
@@ -101,7 +101,7 @@ def train(model, device):
     epoch_size = len(dataset) // args.batch_size
     # each part of loss weight
     cls_w = 1.0
-    ctn_w = 1.0
+    ctn_w = 5.0
     box_w = 1.0
 
     data_loader = data.DataLoader(dataset, args.batch_size,
@@ -151,10 +151,11 @@ def train(model, device):
             cls_loss, ctn_loss, box_loss = tools.loss(out, targets, num_classes=args.num_classes)
 
             total_loss = cls_w * cls_loss + ctn_w * ctn_loss + box_w * box_loss
-            # # viz loss
-            # writer.add_scalar('cls loss', obj_loss.item(), iteration)
-            # writer.add_scalar('ctn loss', class_loss.item(), iteration)
-            # writer.add_scalar('box loss', box_loss.item(), iteration)
+            # viz loss
+            writer.add_scalar('cls loss', cls_loss.item(), iteration)
+            writer.add_scalar('ctn loss', ctn_loss.item(), iteration)
+            writer.add_scalar('box loss', box_loss.item(), iteration)
+            writer.add_scalar('total loss', total_loss.item(), iteration)
             # backprop
             total_loss.backward()
             optimizer.step()
@@ -162,9 +163,10 @@ def train(model, device):
 
             if iteration % 10 == 0:
                 print('timer: %.4f sec.' % (t1 - t0))
-                # print(cls_loss.item(), ctn_loss.item(), box_loss.item())
+                print(cls_loss.item(), ctn_loss.item(), box_loss.item())
+                # print(model.s_3.item(), model.s_4.item(), model.s_5.item())
                 print('Epoch[%d / %d]' % (epoch+1, cfg['max_epoch']) + ' || iter ' + repr(iteration) + \
-                        ' || Loss: %.4f ||' % (total_loss.item()) + ' || lr: %.8f ||' % (lr) + ' || input size: %d ||' % input_size[0], end=' ')
+                        ' || Loss: %.4f ||' % (total_loss.item()) + ' || lr: %.8f ||' % (lr) + ' || input size: %d ||' % input_size[0])
 
         if (epoch + 1) % 10 == 0:
             print('Saving state, epoch:', epoch + 1)
