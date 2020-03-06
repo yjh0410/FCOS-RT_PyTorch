@@ -12,9 +12,9 @@ To overcome above disadvantages, I make the following adjustments:
 ![Image](https://github.com/yjh0410/FCOS-LITE/blob/master/img_folder/fcos-lite.png)
 
 With those adjustments, I have gotten 69.5 mAP and 200 FPS(on RTX 2080-ti) on VOC2007 test with 320 input size.
-But that is not enough, and I'm trying to get better result( faster on low-performance GPU, and almost real-time on CPU). Please wait for my good news !
+But that is not enough, and I'm considering how to get better result( faster on low-performance GPU, and almost real-time on CPU). 
 
-Before you clone this project, I must emphasize again that my FCOS-LITE is not yet mature and there are still many things to do for improvement which I'm trying to do.
+Before you clone this project, I must emphasize again that my FCOS-LITE is not yet mature and there are still many things to do for improvement.
 
 Okay, I think you have known as much as possible. Just have fun !
 
