@@ -13,21 +13,21 @@ class BCE_focal_loss(nn.Module):
     def forward(self, inputs, targets):
         loss = (1.0-inputs)**self.gamma * (targets) * torch.log(inputs + 1e-14) + \
                 (inputs)**self.gamma * (1.0 - targets) * torch.log(1.0 - inputs + 1e-14)
-        loss = -torch.sum(torch.sum(loss, dim=1), dim=-1)
+        loss = -torch.sum(torch.sum(loss, dim=-1), dim=-1)
         return loss
 
 def compute_iou(pred_box, gt_box):
     # calculate IoU
     # [l, t, r, b]
 
-    w_gt = gt_box[:, 0, :] + gt_box[:, 2, :]
-    h_gt = gt_box[:, 1, :] + gt_box[:, 3, :]
-    w_pred = pred_box[:, 0, :] + pred_box[:, 2, :]
-    h_pred = pred_box[:, 1, :] + pred_box[:, 3, :]
+    w_gt = gt_box[:, :, 0] + gt_box[:, :, 2]
+    h_gt = gt_box[:, :, 1] + gt_box[:, :, 3]
+    w_pred = pred_box[:, :, 0] + pred_box[:, :, 2]
+    h_pred = pred_box[:, :, 1] + pred_box[:, :, 3]
     S_gt = w_gt * h_gt
     S_pred = w_pred * h_pred
-    I_h = torch.min(gt_box[:, 1, :], pred_box[:, 1, :]) + torch.min(gt_box[:, 3, :], pred_box[:, 3, :])
-    I_w = torch.min(gt_box[:, 0, :], pred_box[:, 0, :]) + torch.min(gt_box[:, 2, :], pred_box[:, 2, :])
+    I_h = torch.min(gt_box[:, :, 1], pred_box[:, :, 1]) + torch.min(gt_box[:, :, 3], pred_box[:, :, 3])
+    I_w = torch.min(gt_box[:, :, 0], pred_box[:, :, 0]) + torch.min(gt_box[:, :, 2], pred_box[:, :, 2])
     S_I = I_h * I_w
     U = S_gt + S_pred - S_I + 1e-20
     IoU = S_I / U
@@ -44,8 +44,9 @@ def gt_creator(input_size, num_classes, stride, scale_thresholds, label_lists=[]
     # 1 = center-ness
     # 4 = l, t, r, b
     # 1 = positive sample
-    gt_tensor = np.zeros([batch_size, 1 + num_classes + 1 + 4 + 1 + 1, total])
-    gt_tensor[:, 0, :] = 1.0
+    # 1 = iou
+    gt_tensor = np.zeros([batch_size, total, 1 + num_classes + 1 + 4 + 1 + 1])
+    gt_tensor[:, :, 0] = 1.0
 
     # generate gt datas
     for batch_index in range(batch_size):
@@ -84,13 +85,13 @@ def gt_creator(input_size, num_classes, stride, scale_thresholds, label_lists=[]
                                 index = (ys * ws + xs) + start_index
                                 center_ness = np.sqrt((min(l,r) / max(l,r)) * (min(t,b) / max(t,b)))
                                 # To avoid multi class label, we first clear up all potential class labels
-                                gt_tensor[batch_index, :1+num_classes, index] = np.zeros(1+num_classes)
+                                gt_tensor[batch_index, index, :1+num_classes] = np.zeros(1+num_classes)
                                 # then give a new class label
-                                gt_tensor[batch_index, 1 + int(gt_class), index] = 1.0
-                                gt_tensor[batch_index, 1 + num_classes, index] = center_ness
-                                gt_tensor[batch_index, 1 + num_classes + 1 : -2, index] = np.array([l, t, r, b])
-                                gt_tensor[batch_index, -2, index] = 1.0
-                                gt_tensor[batch_index, -1, index] = 1.0
+                                gt_tensor[batch_index, index, 1 + int(gt_class)] = 1.0
+                                gt_tensor[batch_index, index, 1 + num_classes] = center_ness
+                                gt_tensor[batch_index, index, 1 + num_classes + 1 : -2] = np.array([l, t, r, b])
+                                gt_tensor[batch_index, index, -2] = 1.0
+                                gt_tensor[batch_index, index, -1] = 1.0
                                 # print("lalla: ", gt_tensor[batch_index, :, index])
                 start_index += ws * hs
     return gt_tensor
@@ -98,18 +99,19 @@ def gt_creator(input_size, num_classes, stride, scale_thresholds, label_lists=[]
 def loss(pred, label, num_classes):
     # define loss functions
     cls_loss_func = BCE_focal_loss()
-    ctn_loss_func = nn.MSELoss(reduction='none')
+    ctn_loss_func = nn.BCELoss(reduction='none')
     box_loss_func = nn.BCELoss(reduction='none')
 
-    pred_cls = torch.sigmoid(pred[:, :1 + num_classes, :])
-    pred_ctn = torch.sigmoid(pred[:, 1 + num_classes, :])
-    pred_box = torch.exp(pred[:, 1 + num_classes + 1:, :])      
 
-    gt_cls = label[:, :1 + num_classes, :].float()
-    gt_ctn = label[:, 1 + num_classes, :].float()
-    gt_box = label[:, 1 + num_classes + 1 : -2, :].float()
-    gt_pos = label[:, -2, :]
-    gt_iou = label[:, -1, :]
+    pred_cls = torch.sigmoid(pred[:, :, :1 + num_classes])
+    pred_ctn = torch.sigmoid(pred[:, :, 1 + num_classes])
+    pred_box = torch.exp(pred[:, :, 1 + num_classes + 1:])      
+
+    gt_cls = label[:, :, :1 + num_classes].float()
+    gt_ctn = label[:, :, 1 + num_classes].float()
+    gt_box = label[:, :, 1 + num_classes + 1 : -2].float()
+    gt_pos = label[:, :, -2]
+    gt_iou = label[:, :, -1]
     N_pos = torch.sum(gt_pos, dim=-1)
     N_pos = torch.max(N_pos, torch.ones(N_pos.size(), device=N_pos.device))
 
@@ -117,7 +119,7 @@ def loss(pred, label, num_classes):
     cls_loss = torch.mean(cls_loss_func(pred_cls, gt_cls) / N_pos)
     
     # ctn loss
-    ctn_loss = torch.mean(torch.sum(ctn_loss_func(pred_ctn, gt_ctn), dim=-1) / N_pos)
+    ctn_loss = torch.mean(torch.sum(ctn_loss_func(pred_ctn, gt_ctn) * gt_pos, dim=-1) / N_pos)
     
     # box loss
     iou = compute_iou(pred_box, gt_box)
@@ -126,8 +128,8 @@ def loss(pred, label, num_classes):
     return cls_loss, ctn_loss, box_loss
 
 if __name__ == "__main__":
-    stride = [8, 16, 32]
-    scale_thresholds = [0, 64, 128, 1e10]
+    stride = [8, 16, 32, 64]
+    scale_thresholds = [0, 64, 128, 256, 1e10]
     input_size = [416, 416]
     num_classes = 20
     total_fmap_size = [input_size[0] // s for s in stride]
