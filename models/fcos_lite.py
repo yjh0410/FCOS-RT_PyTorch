@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.utils.model_zoo as model_zoo
 from utils import Conv2d
 from backbone import *
 import os
@@ -9,7 +8,7 @@ import numpy as np
 import tools
 
 class FCOS_LITE(nn.Module):
-    def __init__(self, device, input_size, num_classes=20, trainable=False, conf_thresh=0.001, nms_thresh=0.5, hr=False):
+    def __init__(self, device, input_size, num_classes=20, trainable=False, conf_thresh=0.05, nms_thresh=0.5, hr=False):
         super(FCOS_LITE, self).__init__()
         self.device = device
         self.input_size = input_size
@@ -17,51 +16,73 @@ class FCOS_LITE(nn.Module):
         self.trainable = trainable
         self.conf_thresh = conf_thresh
         self.nms_thresh = nms_thresh
-        self.location_weight =torch.tensor([[-1], [-1], [1], [1]]).float().to(device)
-        self.stride = [8, 16, 32]
-        self.scale_thresholds = [0, 64, 128, 1e10]
+        self.location_weight =torch.tensor([[-1, -1, 1, 1]]).float().to(device)
+        self.stride = [8, 16, 32, 64]
+        self.scale_thresholds = [0, 49, 98, 196, 1e10]
         self.pixel_location = self.set_init()
         self.scale = np.array([[input_size[1], input_size[0], input_size[1], input_size[0]]])
         self.scale_torch = torch.tensor(self.scale.copy()).float()
 
         # backbone resnet-18
-        self.backbone = darknet19(pretrained=trainable, hr=hr)
+        self.backbone = resnet18(pretrained=trainable)
         
-        # C_i -> P_i
-        self.conv_1x1_C_5 = Conv2d(1024, 256, 1, leakyReLU=True)
-        self.conv_1x1_C_4 = Conv2d(512, 256, 1, leakyReLU=True)
-        self.conv_1x1_C_3 = Conv2d(256, 256, 1, leakyReLU=True)
-
-        self.conv_3x3_C_4 = Conv2d(256, 256, 3, padding=1, leakyReLU=True)
-        self.conv_3x3_C_3 = Conv2d(256, 256, 3, padding=1, leakyReLU=True)
+        # C_5 -> C_6
+        self.conv_3x3_C_6 = Conv2d(512, 1024, 3, padding=1, stride=2)
 
         # detection head
         # All branches share the self.head
         # 1 is for background label
-        self.pred_cls_ctn = nn.Sequential(
-            Conv2d(256, 128, 1, leakyReLU=True),
-            Conv2d(128, 256, 3, padding=1, leakyReLU=True),
-            Conv2d(256, 128, 1, leakyReLU=True),
-            Conv2d(128, 256, 3, padding=1, leakyReLU=True),
-            nn.Conv2d(256, 1 + self.num_classes + 1, 1)
+
+        # P_6
+        self.conv_set_6 = nn.Sequential(
+            Conv2d(1024, 512, 1),
+            Conv2d(512, 1024, 3, padding=1),
+            Conv2d(1024, 512, 1),
+        )
+        self.pred_6 = nn.Sequential(
+            Conv2d(512, 1024, 3, padding=1),
+            nn.Conv2d(1024, 1 + self.num_classes + 1 + 4, 1)
         )
 
-        self.pred_loc = nn.Sequential(
-            Conv2d(256, 128, 1, leakyReLU=True),
-            Conv2d(128, 256, 3, padding=1, leakyReLU=True),
-            Conv2d(256, 128, 1, leakyReLU=True),
-            Conv2d(128, 256, 3, padding=1, leakyReLU=True),
-            nn.Conv2d(256, 4, 1)
+        # P_5
+        self.conv_set_5 = nn.Sequential(
+            Conv2d(512, 256, 1),
+            Conv2d(256, 512, 3, padding=1),
+            Conv2d(512, 256, 1)
+        )
+        self.conv_1x1_5 = Conv2d(256, 128, 1)
+        self.pred_5 = nn.Sequential(
+            Conv2d(256, 512, 3, padding=1),
+            nn.Conv2d(512, 1 + self.num_classes + 1 + 4, 1)
         )
 
-        # adaptive scale for location
-        self.s_3 = nn.Conv2d(4, 4, 1)
-        self.s_4 = nn.Conv2d(4, 4, 1)
-        self.s_5 = nn.Conv2d(4, 4, 1)
+        # P_4
+        self.conv_set_4 = nn.Sequential(
+            Conv2d(384, 128, 1),
+            Conv2d(128, 256, 3, padding=1),
+            Conv2d(256, 128, 1)
+        )
+        self.conv_1x1_4 = Conv2d(128, 64, 1)
+        self.pred_4 = nn.Sequential(
+            Conv2d(128, 256, 3, padding=1),
+            nn.Conv2d(256, 1 + self.num_classes + 1 + 4, 1)
+        )
+
+        # P_3
+        self.conv_set_3 = nn.Sequential(
+            Conv2d(192, 64, 1),
+            Conv2d(64, 128, 3, padding=1),
+            Conv2d(128, 64, 1)
+        )
+        self.pred_3 = nn.Sequential(
+            Conv2d(64, 128, 3, padding=1),
+            nn.Conv2d(128, 1 + self.num_classes + 1 + 4, 1)
+        )
+
 
     def set_init(self):
         total = sum([(self.input_size[0] // s) * (self.input_size[1] // s) for s in self.stride])
-        pixel_location = torch.zeros(4, total).to(self.device)
+        pixel_location = torch.zeros(total, 4).to(self.device)
         start_index = 0
         for index in range(len(self.stride)):
             s = self.stride[index]
@@ -74,7 +95,7 @@ class FCOS_LITE(nn.Module):
                     index = x_y + start_index
                     x = xs * s + s / 2
                     y = ys * s + s / 2
-                    pixel_location[:, index] = torch.tensor([[x, y, x, y]]).float()
+                    pixel_location[index, :] = torch.tensor([[x, y, x, y]]).float()
             start_index += ws * hs
         return pixel_location        
 
@@ -169,40 +190,44 @@ class FCOS_LITE(nn.Module):
     def forward(self, x):
         # backbone
         C_3, C_4, C_5 = self.backbone(x)
-
-        # C_i -> P_i
-        P_5 = self.conv_1x1_C_5(C_5)
-        P_5_up = F.interpolate(P_5, scale_factor=2.0, mode='bilinear', align_corners=True)
-
-        P_4 = self.conv_3x3_C_4(self.conv_1x1_C_4(C_4) + P_5_up)
-        P_4_up = F.interpolate(P_4, scale_factor=2.0, mode='bilinear', align_corners=True)
-
-        P_3 = self.conv_3x3_C_3(self.conv_1x1_C_3(C_3) + P_4_up)
-
-        # pred cls, ctn(center-ness), loc
+        C_6 = self.conv_3x3_C_6(C_5)
         B = C_3.shape[0]
-        cls_ctn_3, cls_ctn_4, cls_ctn_5 = self.pred_cls_ctn(P_3), self.pred_cls_ctn(P_4), self.pred_cls_ctn(P_5)
-        loc_3, loc_4, loc_5 = self.s_3(self.pred_loc(P_3)), self.s_4(self.pred_loc(P_4)), self.s_5(self.pred_loc(P_5))
-        pred_3 = torch.cat([cls_ctn_3, loc_3], dim=1).view(B, 1 + self.num_classes + 1 + 4, -1)
-        pred_4 = torch.cat([cls_ctn_4, loc_4], dim=1).view(B, 1 + self.num_classes + 1 + 4, -1)
-        pred_5 = torch.cat([cls_ctn_5, loc_5], dim=1).view(B, 1 + self.num_classes + 1 + 4, -1)
 
+        # P_6
+        pred_6 = self.pred_6(self.conv_set_6(C_6)).view(B, 1 + self.num_classes + 1 + 4, -1)
 
-        total_prediction = torch.cat([pred_3, pred_4, pred_5], dim=-1)
+        # P_5
+        C_5 = self.conv_set_5(C_5)
+        C_5_up = F.interpolate(self.conv_1x1_5(C_5), scale_factor=2.0, mode='bilinear', align_corners=True)
+        pred_5 = self.pred_5(C_5).view(B, 1 + self.num_classes + 1 + 4, -1)
+
+        # P_4
+        C_4 = torch.cat([C_4, C_5_up], dim=1)
+        C_4 = self.conv_set_4(C_4)
+        C_4_up = F.interpolate(self.conv_1x1_4(C_4), scale_factor=2.0, mode='bilinear', align_corners=True)
+        pred_4 = self.pred_4(C_4).view(B, 1 + self.num_classes + 1 + 4, -1)
+
+        # P_3
+        C_3 = torch.cat([C_3, C_4_up], dim=1)
+        C_3 = self.conv_set_3(C_3)
+        pred_3 = self.pred_3(C_3).view(B, 1 + self.num_classes + 1 + 4, -1)
+
+        total_prediction = torch.cat([pred_3, pred_4, pred_5, pred_6], dim=-1).permute(0, 2, 1)
         # test
         if not self.trainable:
             with torch.no_grad():
                 # batch size = 1
                 # Be careful, the index 0 in all_cls is background !!
-                all_cls = torch.sigmoid(total_prediction[0, :1 + self.num_classes, :])
-                all_ctn = torch.sigmoid(total_prediction[0, 1 + self.num_classes : 1 + self.num_classes + 1, :])
-                all_loc = torch.exp(total_prediction[0, 1 + self.num_classes + 1 : , :]) * self.location_weight + self.pixel_location
+                # As index 0 is background, we just ignore it.
+                all_cls = torch.sigmoid(total_prediction[0, :, 1:1 + self.num_classes])
+                all_ctn = torch.sigmoid(total_prediction[0, :, 1 + self.num_classes : 1 + self.num_classes + 1])
+                all_loc = torch.exp(total_prediction[0, :, 1 + self.num_classes + 1 : ]) * self.location_weight + self.pixel_location
                 # separate box pred and class conf
                 all_cls = all_cls.to('cpu').numpy()
                 all_ctn = all_ctn.to('cpu').numpy()
                 all_loc = all_loc.to('cpu').numpy()
 
-                bboxes, scores, cls_inds = self.postprocess(all_loc, all_cls * all_ctn)
+                bboxes, scores, cls_inds = self.postprocess(all_loc, all_cls)# * all_ctn
                 # clip the boxes
                 bboxes = self.clip_boxes(bboxes, self.input_size) / self.scale
 
