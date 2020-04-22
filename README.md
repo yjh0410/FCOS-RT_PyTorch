@@ -62,7 +62,7 @@ sh data/scripts/VOC2012.sh # <directory>
 ## Train
 To run:
 ```Shell
-python train_voc.py
+python train_voc.py --cuda
 ```
 
 You can run ```python train_voc.py -h``` to check all optional argument
