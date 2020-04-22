@@ -154,7 +154,6 @@ def train():
             targets = torch.tensor(targets).float().to(device)
 
             # forward
-            t0 = time.time()
             out = model(images.to(device))
             
             optimizer.zero_grad()
