@@ -1,6 +1,14 @@
 # FCOS-LITE
 This is my first simple attempt to reproduce the famous anchor-free model：FCOS.
 
+The mAP is 71%. 
+
+But I have no time and no resource enough to make my fcos-lite better and better. So, sorry guys! I have to give up.
+
+Do not expext it. It is just an exercise.
+
+--------------------------------------------------------------------------------------------------------------------------------------
+
 For origin FCOS, I think it is too big to deploy on my device. Specifically, FCOS makes a prediction on an 800 x 1024 image where the input image is much big. What's more, its backbone network, resnet-50, is a little big, and its detection head is also slow. Therefore, I want to build a light-weight FCOS: FCOS-LITE.
 
 To overcome above disadvantages, I make the following adjustments:
