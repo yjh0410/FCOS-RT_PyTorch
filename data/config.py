@@ -1,34 +1,19 @@
 # config.py
-import os.path
 
-# for making bounding boxes pretty
-COLORS = ((255, 0, 0, 128), (0, 255, 0, 128), (0, 0, 255, 128),
-          (0, 255, 255, 128), (255, 0, 255, 128), (255, 255, 0, 128))
-MEANS = (104, 117, 123)
-
-# yolo-v2 config
-voc_ab = {
-    'num_classes': 20,
-    'lr_epoch': (150, 200, 250),
-    'max_epoch': 250,
-    'min_dim': [320, 320],
-    'ms_channels':[128, 256, 512],
-    'multi_scale': [[320, 320], [352, 352], [384, 384], [416, 416], [448, 448],
-                 [480, 480], [512, 512], [544, 544], [576, 576], [608, 608]],
-    'variance': [0.1, 0.2],
-    'clip': True,
-    'name': 'VOC',
-}
-
-coco_ab = {
-    'num_classes': 80,
-    'lr_epoch': (150, 200, 250),
-    'max_epoch': 250,
-    'min_dim': [320, 320],
-    'ms_channels':[128, 256, 512],
-    'multi_scale': [[320, 320], [352, 352], [384, 384], [416, 416], [448, 448],
-                 [480, 480], [512, 512], [544, 544], [576, 576], [608, 608]],
-    'variance': [0.1, 0.2],
-    'clip': True,
-    'name': 'COCO',
+# train
+train_cfg = {
+    # network
+    'backbone': 'r18',
+    # for multi-scale trick
+    'img_size': 896,
+    'train_size': 768,
+    'val_size': 768,
+    'random_size_range': [4, 7], #[512, 640, 768, 896]
+    # anchor size
+    'anchor_size': [[10, 13],   [16, 30],   [33, 23],
+                    [30, 61],   [62, 45],   [59, 119],
+                    [116, 90],  [156, 198], [373, 326]],
+    # train
+    'max_epoch': 300,
+    'ignore_thresh': 0.5
 }
