@@ -305,7 +305,7 @@ def train():
             # vis_data(images, targets, train_size)
             # continue
             targets = tools.gt_creator(img_size=train_size, 
-                                       strides=net.stride, 
+                                       strides=net.strides, 
                                        scale_range=cfg['scale_range'],
                                        label_lists=targets
                                        )
