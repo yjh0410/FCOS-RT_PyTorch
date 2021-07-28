@@ -87,12 +87,9 @@ def train():
     print("Setting Arguments.. : ", args)
     print("----------------------------------------------------------")
     # config file
-    if args.version == 'baseline':
-        cfg = config.baseline_cfg
-    
-    elif args.version == 'yolox':
-        cfg = config.yolox_cfg
-    
+    if args.version == 'fcos':
+        cfg = config.train_cfg
+        
     # model name
     model_name = args.version
     print('Model: ', model_name)
@@ -180,8 +177,6 @@ def train():
     # buile model and config file
     if model_name == 'fcos':
         from models.fcos import FCOS
-        # config file
-        cfg = config.train_cfg
         backbone = cfg['backbone']
         # model
         net = FCOS(device=device, 
