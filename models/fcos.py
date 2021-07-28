@@ -273,6 +273,6 @@ class FCOS(nn.Module):
                 bboxes = bboxes.cpu().numpy()
 
                 # postprocess
-                bboxes, scores, cls_inds = self.postprocess(scores, bboxes)
+                bboxes, scores, cls_inds = self.postprocess(bboxes, scores)
 
                 return bboxes, scores, cls_inds
