@@ -304,7 +304,8 @@ def train():
             targets = [label.tolist() for label in targets]
             # vis_data(images, targets, train_size)
             # continue
-            targets = tools.gt_creator(img_size=train_size, 
+            targets = tools.gt_creator(img_size=train_size,
+                                       num_classes=num_classes, 
                                        strides=net.strides, 
                                        scale_range=cfg['scale_range'],
                                        label_lists=targets
