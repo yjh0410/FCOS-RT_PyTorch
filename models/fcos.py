@@ -244,8 +244,8 @@ class FCOS(nn.Module):
         # train
         if self.trainable:
             # compute giou between pred bboxes and gt bboxes
-            x1y1x2y2_pred = reg_pred / self.img_size
-            x1y1x2y2_gt = targets[:, :, -5:-1].view(-1, 4)
+            x1y1x2y2_pred = (reg_pred / self.img_size).reshape(-1, 4)
+            x1y1x2y2_gt = targets[:, :, -5:-1].reshape(-1, 4)
 
             # giou
             giou_pred = box_ops.giou_score(x1y1x2y2_pred, x1y1x2y2_gt, batch_size=B)
@@ -266,7 +266,7 @@ class FCOS(nn.Module):
             with torch.no_grad():
                 # batch size = 1
                 scores = torch.sqrt(cls_pred.sigmoid() * ctn_pred.sigmoid())[0]
-                bboxes = torch.clamp(reg_pred / self.img_size, 0, 1)
+                bboxes = torch.clamp(reg_pred / self.img_size, 0, 1)[0]
                 
                 # to cpu
                 scores = scores.cpu().numpy()
