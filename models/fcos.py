@@ -19,7 +19,7 @@ class FCOS(nn.Module):
         self.nms_thresh = nms_thresh
         self.backbone = bk
         self.strides = [8, 16, 32, 64, 128]
-        self.grid_cell = self.create_grid()
+        self.grid_cell = self.create_grid(img_size)
 
         if self.backbone == 'r18':
             print('use backbone: resnet-18', )
@@ -75,7 +75,7 @@ class FCOS(nn.Module):
 
     def create_grid(self, img_size):
         total_grid_xy = []
-        w, h = img_size, img_size
+        w = h = img_size
         for s in self.strides:
             # generate grid cells
             ws, hs = w // s, h // s
