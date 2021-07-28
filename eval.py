@@ -6,24 +6,22 @@ from utils.voc_evaluator import VOCAPIEvaluator
 from utils.coco_evaluator import COCOAPIEvaluator
 
 
-parser = argparse.ArgumentParser(description='YOLOv3Plus Detector Evaluation')
-parser.add_argument('-v', '--version', default='yolo_v3_plus',
-                    help='yolov3p_cd53.')
+parser = argparse.ArgumentParser(description='FCOS Evaluation')
+parser.add_argument('-v', '--version', default='fcos',
+                    help='fcos.')
 parser.add_argument('-d', '--dataset', default='voc',
                     help='voc, coco-val, coco-test.')
 parser.add_argument('--trained_model', type=str,
                     default='weights/', 
                     help='Trained state_dict file path to open')
-parser.add_argument('-size', '--input_size', default=416, type=int,
+parser.add_argument('-size', '--input_size', default=768, type=int,
                     help='input_size')
 parser.add_argument('-ct', '--conf_thresh', default=0.001, type=float,
                     help='conf thresh')
-parser.add_argument('-nt', '--nms_thresh', default=0.50, type=float,
+parser.add_argument('-nt', '--nms_thresh', default=0.60, type=float,
                     help='nms thresh')
 parser.add_argument('--cuda', action='store_true', default=False,
                     help='Use cuda')
-parser.add_argument('--diou_nms', action='store_true', default=False, 
-                    help='use diou nms.')
 
 args = parser.parse_args()
 
@@ -92,31 +90,29 @@ if __name__ == '__main__':
         device = torch.device("cpu")
 
     # input size
-    input_size = [args.input_size, args.input_size]
+    input_size = args.input_size
 
     # model
     model_name = args.version
     print('Model: ', model_name)
 
     # load model and config file
-    if model_name == 'yolov3p_cd53':
-        from models.yolo_v3_plus import YOLOv3Plus as yolov3p_net
-        cfg = config.yolov3plus_cfg
+    if model_name == 'fcos':
+        from models.fcos import FCOS
+        cfg = config.train_cfg
         backbone = cfg['backbone']
-        anchor_size = cfg['anchor_size']
 
     else:
         print('Unknown model name...')
         exit(0)
 
-    # build model
-    net = yolov3p_net(device=device, 
-                        input_size=input_size, 
-                        num_classes=num_classes, 
-                        trainable=False, 
-                        anchor_size=anchor_size, 
-                        bk=backbone
-                        )
+    # model
+    net = FCOS(device=device, 
+                img_size=input_size, 
+                num_classes=num_classes, 
+                trainable=False, 
+                bk=backbone
+                )
 
     # load weight
     net.load_state_dict(torch.load(args.trained_model, map_location=device))
