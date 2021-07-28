@@ -33,7 +33,7 @@ class FocalWithLogitsLoss(nn.Module):
         return loss
 
 
-def gt_creator(img_size, num_classes, strides, scale_range, label_lists=[], r :int=1):
+def gt_creator(img_size, num_classes, strides, scale_range, label_lists=[], r=1):
     batch_size = len(label_lists)
     w = h = img_size
     gt_tensor = []
@@ -70,6 +70,7 @@ def gt_creator(img_size, num_classes, strides, scale_range, label_lists=[], r :i
                     gridy = int(yc_s)
 
                     # By default, we only consider the 3x3 neighborhood of the center point
+                    r = int(r)
                     for i in range(gridx - r, gridx + r + 1):
                         for j in range(gridy - r, gridy + r + 1):
                             if (j >= 0 and j < gt_tensor[si].shape[1]) and (i >= 0 and i < gt_tensor[si].shape[2]):
