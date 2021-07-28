@@ -83,7 +83,10 @@ def gt_creator(img_size, num_classes, strides, scale_range, label_lists=[]):
                                         gt_tensor[si][bi, j, i, num_classes:num_classes + 4] = np.array([x1, y1, x2, y2])
                                         gt_tensor[si][bi, j, i, num_classes + 4] = np.sqrt(min(l, r) / max(l, r) * \
                                                                                            min(t, b) / max(t, b))
-                                
+    
+    gt_tensor = [gt.reshape(batch_size, -1, num_classes + 4 + 1) for gt in gt_tensor]
+    gt_tensor = np.concatenate(gt_tensor, axis=1)
+
     return torch.from_numpy(gt_tensor).float()
 
 
