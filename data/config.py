@@ -9,11 +9,10 @@ train_cfg = {
     'train_size': 768,
     'val_size': 768,
     'random_size_range': [4, 7], #[512, 640, 768, 896]
-    # anchor size
-    'anchor_size': [[10, 13],   [16, 30],   [33, 23],
-                    [30, 61],   [62, 45],   [59, 119],
-                    [116, 90],  [156, 198], [373, 326]],
+    # scale range
+    'scale_range': [[0, 64], [64, 128], [128, 256], [256, 512], [512, 1e5]],
     # train
-    'max_epoch': 300,
-    'ignore_thresh': 0.5
+    'lr': 0.01,
+    'max_epoch': 12,
+    'lr_epoch': [8, 10]
 }

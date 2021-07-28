@@ -142,19 +142,19 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        C_1 = self.conv1(x)
-        C_1 = self.bn1(C_1)
-        C_1 = self.relu(C_1)
-        C_1 = self.maxpool(C_1)
+        c1 = self.conv1(x)
+        c1 = self.bn1(c1)
+        c1 = self.relu(c1)
+        c1 = self.maxpool(c1)
 
-        C_2 = self.layer1(C_1)
-        C_3 = self.layer2(C_2)
-        C_4 = self.layer3(C_3)
-        C_5 = self.layer4(C_4)
+        c2 = self.layer1(c1)
+        c3 = self.layer2(c2)
+        c4 = self.layer3(c3)
+        c5 = self.layer4(c4)
 
-        return C_3, C_4, C_5
+        return c3, c4, c5
             
-def resnet18(pretrained=False, hr_pretrained=False, **kwargs):
+def resnet18(pretrained=False, **kwargs):
     """Constructs a ResNet-18 model.
 
     Args:
@@ -163,11 +163,7 @@ def resnet18(pretrained=False, hr_pretrained=False, **kwargs):
     model = ResNet(BasicBlock, [2, 2, 2, 2], **kwargs)
     if pretrained:
         # strict = False as we don't need fc layer params.
-        if hr_pretrained:
-            print('Loading the high resolution pretrained model ...')
-            model.load_state_dict(torch.load("backbone/weights/resnet18_hr_10.pth"), strict=False)
-        else:
-            model.load_state_dict(model_zoo.load_url(model_urls['resnet18']), strict=False)
+        model.load_state_dict(model_zoo.load_url(model_urls['resnet18']), strict=False)
     return model
 
 def resnet34(pretrained=False, **kwargs):

@@ -1,30 +1,49 @@
 import torch
 import torch.nn as nn
-import torch.backends.cudnn as cudnn
+import math
+from copy import deepcopy
 
-def get_device(gpu_ind):
-    if torch.cuda.is_available():
-        print('Let us use GPU.')
-        cudnn.benchmark = True
-        if torch.cuda.device_count() == 1:
-            device = torch.device('cuda')
+
+def is_parallel(model):
+    # Returns True if model is of type DP or DDP
+    return type(model) in (nn.parallel.DataParallel, nn.parallel.DistributedDataParallel)
+
+
+class Conv(nn.Module):
+    def __init__(self, in_ch, out_ch, k=1, p=0, s=1, d=1, g=1, act=True, bias=False):
+        super(Conv, self).__init__()
+        if act:
+            self.convs = nn.Sequential(
+                nn.Conv2d(in_ch, out_ch, k, stride=s, padding=p, dilation=d, groups=g, bias=bias),
+                nn.BatchNorm2d(out_ch),
+                nn.ReLU(inplace=True)
+            )
         else:
-            device = torch.device('cuda:%d' % gpu_ind)
-    else:
-        print('Come on !! No GPU ?? Who gives you the courage to study Deep Learning ?')
-        device = torch.device('cpu')
-
-    return device
-
-
-class Conv2d(nn.Module):
-    def __init__(self, in_channels, out_channels, ksize, padding=0, stride=1, dilation=1, leakyReLU=False):
-        super(Conv2d, self).__init__()
-        self.convs = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, ksize, stride=stride, padding=padding, dilation=dilation),
-            nn.BatchNorm2d(out_channels),
-            nn.LeakyReLU(0.1, inplace=True) if leakyReLU else nn.ReLU(inplace=True)
-        )
+            self.convs = nn.Sequential(
+                nn.Conv2d(in_ch, out_ch, k, stride=s, padding=p, dilation=d, groups=g, bias=bias),
+                nn.BatchNorm2d(out_ch)
+            )
 
     def forward(self, x):
         return self.convs(x)
+
+class ModelEMA(object):
+    def __init__(self, model, decay=0.9999, updates=0):
+        # create EMA
+        self.ema = deepcopy(model.module if is_parallel(model) else model).eval()  # FP32 EMA
+        self.updates = updates
+        self.decay = lambda x: decay * (1 - math.exp(-x / 2000.))
+        for p in self.ema.parameters():
+            p.requires_grad_(False)
+
+    def update(self, model):
+        # Update EMA parameters
+        with torch.no_grad():
+            self.updates += 1
+            d = self.decay(self.updates)
+
+            msd = model.module.state_dict() if is_parallel(model) else model.state_dict()  # model state_dict
+            for k, v in self.ema.state_dict().items():
+                if v.dtype.is_floating_point:
+                    v *= d
+                    v += (1. - d) * msd[k].detach()

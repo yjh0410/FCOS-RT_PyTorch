@@ -1,182 +1,117 @@
 import numpy as np
-from data import *
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-CLASS_COLOR = [(np.random.randint(255),np.random.randint(255),np.random.randint(255)) for _ in range(len(VOC_CLASSES))]
 
-class BCE_focal_loss(nn.Module):
-    def __init__(self, gamma=2):
-        super(BCE_focal_loss, self).__init__()
+class FocalWithLogitsLoss(nn.Module):
+    def __init__(self, reduction='mean', gamma=2.0, alpha=0.25):
+        super(FocalWithLogitsLoss, self).__init__()
+        self.reduction = reduction
         self.gamma = gamma
+        self.alpha = alpha
 
-    def forward(self, inputs, targets):
-        loss = (1.0-inputs)**self.gamma * (targets) * torch.log(inputs + 1e-14) + \
-                (inputs)**self.gamma * (1.0 - targets) * torch.log(1.0 - inputs + 1e-14)
-        loss = -torch.sum(torch.sum(loss, dim=-1), dim=-1)
+    def forward(self, logits, targets, num_pos):
+        p = torch.sigmoid(logits)
+        ce_loss = F.binary_cross_entropy_with_logits(input=logits, 
+                                                     target=targets, 
+                                                     reduction="none"
+                                                     )
+        p_t = p * targets + (1.0 - p) * (1.0 - targets)
+        loss = ce_loss * ((1.0 - p_t) ** self.gamma)
+
+        if self.alpha >= 0:
+            alpha_t = self.alpha * targets + (1.0 - self.alpha) * (1.0 - targets)
+            loss = alpha_t * loss
+
+        if self.reduction == "mean":
+            loss = torch.sum(loss) / num_pos
+
+        elif self.reduction == "sum":
+            loss = torch.sum(loss)
+
         return loss
 
-def compute_iou(pred_box, gt_box):
-    # calculate IoU
-    # [l, t, r, b]
 
-    w_gt = gt_box[:, :, 0] + gt_box[:, :, 2]
-    h_gt = gt_box[:, :, 1] + gt_box[:, :, 3]
-    w_pred = pred_box[:, :, 0] + pred_box[:, :, 2]
-    h_pred = pred_box[:, :, 1] + pred_box[:, :, 3]
-    S_gt = w_gt * h_gt
-    S_pred = w_pred * h_pred
-    I_h = torch.min(gt_box[:, :, 1], pred_box[:, :, 1]) + torch.min(gt_box[:, :, 3], pred_box[:, :, 3])
-    I_w = torch.min(gt_box[:, :, 0], pred_box[:, :, 0]) + torch.min(gt_box[:, :, 2], pred_box[:, :, 2])
-    S_I = I_h * I_w
-    U = S_gt + S_pred - S_I + 1e-20
-    IoU = S_I / U
-    
-    return IoU
-
-def gt_creator(input_size, num_classes, stride, scale_thresholds, label_lists=[], name='VOC'):
+def gt_creator(img_size, num_classes, strides, scale_range, label_lists=[], r=1):
     batch_size = len(label_lists)
-    w = input_size[1]
-    h = input_size[0]
-    total = sum([(h // s) * (w // s) for s in stride])
+    w = h = img_size
+    gt_tensor = []
     
-    # 1 + num_classes = background + class label number
-    # 1 = center-ness
-    # 4 = l, t, r, b
-    # 1 = positive sample
-    # 1 = iou
-    gt_tensor = np.zeros([batch_size, total, 1 + num_classes + 1 + 4 + 1 + 1])
-    gt_tensor[:, :, 0] = 1.0
+    # empty gt tensor
+    for s in strides:
+        gt_tensor.append(np.zeros([batch_size, h//s, w//s, num_classes + 4 + 1]))
 
     # generate gt datas
-    for batch_index in range(batch_size):
-        for gt_box in label_lists[batch_index]:
-            gt_class = gt_box[-1]
-            xmin, ymin, xmax, ymax = gt_box[:-1]
-            xmin *= w
-            ymin *= h
-            xmax *= w
-            ymax *= h
-            # check whether it is a dirty data
-            if xmax - xmin < 1e-28 or ymax - ymin < 1e-28:
-                print("find a dirty data !!!")
-                continue
+    for bi in range(batch_size):
+        for gt_label in label_lists[bi]:
+            x1, y1, x2, y2 = gt_label[:-1]
+            cls_id = int(gt_label[-1])
 
-            start_index = 0
-            for scale_index, s in enumerate(stride):
-                #print(start_index)
-                # get a feature map size corresponding the scale
-                ws = w // s
-                hs = h // s
-                for ys in range(hs):
-                    for xs in range(ws):
-                        # map the location (xs, ys) in f_mp to corresponding location (x, y) in the origin image
-                        x = xs * s + s // 2
-                        y = ys * s + s // 2
-                        if x >= xmin and x <= xmax and y >= ymin and y <= ymax:
-                            l = x - xmin
-                            t = y - ymin
-                            r = xmax - x
-                            b = ymax - y
-                            # select a appropriate scale for gt dat
-                            M = max(l, t, r, b)
-                            
-                            if M >= scale_thresholds[scale_index] and M < scale_thresholds[scale_index+1]:
-                                index = (ys * ws + xs) + start_index
-                                center_ness = np.sqrt((min(l,r) / max(l,r)) * (min(t,b) / max(t,b)))
-                                # To avoid multi class label, we first clear up all potential class labels
-                                gt_tensor[batch_index, index, :1+num_classes] = np.zeros(1+num_classes)
-                                # then give a new class label
-                                gt_tensor[batch_index, index, 1 + int(gt_class)] = 1.0
-                                gt_tensor[batch_index, index, 1 + num_classes] = center_ness
-                                gt_tensor[batch_index, index, 1 + num_classes + 1 : -2] = np.array([l, t, r, b])
-                                gt_tensor[batch_index, index, -2] = 1.0
-                                gt_tensor[batch_index, index, -1] = 1.0
-                                # print("lalla: ", gt_tensor[batch_index, :, index])
-                start_index += ws * hs
+            # compute the center, width and height
+            xc = (x2 + x1) / 2 * w
+            yc = (y2 + y1) / 2 * h
+            bw = (x2 - x1) * w
+            bh = (y2 - y1) * h
+
+            if bw < 1. or bh < 1.:
+                # print('A dirty data !!!')
+                continue    
+
+            for sr in scale_range:
+                for si, s in enumerate(strides):
+                    hs, ws = h // s, w // s
+                    x1_s, x2_s = x1 * ws, x2 * ws
+                    y1_s, y2_s = y1 * hs, y2 * hs
+                    xc_s = xc / s
+                    yc_s = yc / s
+
+                    gridx = int(xc_s)
+                    gridy = int(yc_s)
+
+                    # By default, we only consider the 3x3 neighborhood of the center point
+                    for i in range(gridx - r, gridx + r + 1):
+                        for j in range(gridy - r, gridy + r + 1):
+                            if (j >= 0 and j < gt_tensor.shape[1]) and (i >= 0 and i < gt_tensor.shape[2]):
+                                t = j - y1_s
+                                b = y2_s - j
+                                l = i - x1_s
+                                r = x2_s - i
+                                if min(t, b, l, r) > 0:
+                                    if max(t, b, l, r) >= (sr[0]/s) and max(t, b, l, r) < (sr[1]/s):
+                                        gt_tensor[si, bi, j, i, cls_id] = 1.0
+                                        gt_tensor[si, bi, j, i, num_classes:num_classes + 4] = np.array([x1, y1, x2, y2])
+                                        gt_tensor[si, bi, j, i, num_classes + 4] = np.sqrt(min(l, r) / max(l, r) * \
+                                                                                           min(t, b) / max(t, b))
+                                
     return gt_tensor
 
-def loss(pred, label, num_classes):
-    # define loss functions
-    cls_loss_func = BCE_focal_loss()
-    ctn_loss_func = nn.BCELoss(reduction='none')
-    box_loss_func = nn.BCELoss(reduction='none')
 
-
-    pred_cls = torch.sigmoid(pred[:, :, :1 + num_classes])
-    pred_ctn = torch.sigmoid(pred[:, :, 1 + num_classes])
-    pred_box = torch.exp(pred[:, :, 1 + num_classes + 1:])      
-
-    gt_cls = label[:, :, :1 + num_classes].float()
-    gt_ctn = label[:, :, 1 + num_classes].float()
-    gt_box = label[:, :, 1 + num_classes + 1 : -2].float()
-    gt_pos = label[:, :, -2]
-    gt_iou = label[:, :, -1]
-    N_pos = torch.sum(gt_pos, dim=-1)
-    N_pos = torch.max(N_pos, torch.ones(N_pos.size(), device=N_pos.device))
+def loss(pred_cls, pred_giou, pred_ctn, label, num_classes):
+    # create loss_f
+    cls_loss_function = FocalWithLogitsLoss(reduction='mean')
+    ctn_loss_function = nn.BCELoss(reduction='none')
+    
+    # groundtruth    
+    gt_cls = label[..., :num_classes]
+    gt_ctn = label[..., -1]
+    gt_pos = (gt_ctn > 0.).float()
+    num_pos = gt_pos.sum()
 
     # cls loss
-    cls_loss = torch.mean(cls_loss_func(pred_cls, gt_cls) / N_pos)
-    
-    # ctn loss
-    ctn_loss = torch.mean(torch.sum(ctn_loss_func(pred_ctn, gt_ctn) * gt_pos, dim=-1) / N_pos)
-    
-    # box loss
-    iou = compute_iou(pred_box, gt_box)
-    box_loss = torch.mean(torch.sum(box_loss_func(iou, gt_iou) * gt_pos, dim=-1) / N_pos)
+    cls_loss = cls_loss_function(logits=pred_cls, targets=gt_cls, num_pos=num_pos)
+        
+    # reg loss
+    reg_loss = ((1. - pred_giou) * gt_pos).sum() / num_pos
 
-    return cls_loss, ctn_loss, box_loss
+    # ctn loss
+    ctn_loss = (ctn_loss_function(pred_ctn.sigmoid(), gt_ctn) * gt_pos).sum() / num_pos
+
+    # total loss
+    total_loss = cls_loss + reg_loss + ctn_loss
+
+    return cls_loss, reg_loss, ctn_loss, total_loss
+
 
 if __name__ == "__main__":
-    stride = [8, 16, 32, 64]
-    scale_thresholds = [0, 64, 128, 256, 1e10]
-    input_size = [416, 416]
-    num_classes = 20
-    total_fmap_size = [input_size[0] // s for s in stride]
-    voc_root = 'C:/YJH-HOST/dataset/VOCdevkit/'
-
-    dataset = VOCDetection(voc_root, [('2007', 'trainval'), ('2012', 'trainval')], transform=BaseTransform(input_size, (0, 0, 0)))
-    data_loader = torch.utils.data.DataLoader(dataset, 1,
-                                  num_workers=0,
-                                  shuffle=False, collate_fn=detection_collate,
-                                  pin_memory=True)
-    batch_iterator = iter(data_loader)
-    count = 0
-    for images, targets in batch_iterator:
-        # origin image
-        img = dataset.pull_image(count)
-        img = cv2.resize(img, (input_size[1], input_size[0]))
-        count += 1
-        # gt labels
-        targets = [label.tolist() for label in targets]
-        gt_tensor = gt_creator(input_size=input_size, num_classes=num_classes, 
-                             stride=stride, scale_thresholds=scale_thresholds, 
-                             label_lists=targets)
-
-        CLASSES = VOC_CLASSES
-        class_color = CLASS_COLOR
-        start_index = 0
-        for fmap_size, s in zip(total_fmap_size, stride):
-            for ys in range(fmap_size):
-                for xs in range(fmap_size):
-                    x = xs * s + s // 2
-                    y = ys * s + s // 2
-                    index = (ys * fmap_size + xs) + start_index
-                    if gt_tensor[0, -1, index] == 1.0:
-                        l, t, r, b = gt_tensor[0, 1+num_classes+1:-1, index]
-                        xmin = int(x - l)
-                        ymin = int(y - t)
-                        xmax = int(x + r)
-                        ymax = int(y + b)
-                        # print((xmin, ymin), (xmax, ymax))
-                        cls_label = np.argmax(gt_tensor[:, :1+num_classes, index], axis=1) - 1
-                        cv2.circle(img, (int(x), int(y)), 5, class_color[int(cls_label)], -1)
-                        cv2.rectangle(img, (xmin, ymin), (xmax, ymax), class_color[int(cls_label)], 2)
-                        cv2.rectangle(img, (int(xmin), int(abs(ymin)-15)), (int(xmin+(xmax-xmin)*0.55), int(ymin)), class_color[int(cls_label)], -1)
-                        mess = '%s' % (CLASSES[int(cls_label)])
-                        cv2.putText(img, mess, (int(xmin), int(ymin)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 2)
-                        # cv2.imshow('image', img)
-                        # cv2.waitKey(0)
-            start_index += fmap_size * fmap_size
-        cv2.imshow('image', img)
-        cv2.waitKey(0)
+    pass
