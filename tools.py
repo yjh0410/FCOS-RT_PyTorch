@@ -101,7 +101,6 @@ def loss(pred_cls, pred_giou, pred_ctn, label, num_classes):
     gt_ctn = label[..., -1]
     gt_pos = (gt_ctn > 0.).float()
     num_pos = gt_pos.sum(-1, keepdim=True).clamp(1)
-    print(num_pos)
 
     batch_size = pred_cls.size(0)
     # cls loss
