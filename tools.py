@@ -11,7 +11,7 @@ class FocalWithLogitsLoss(nn.Module):
         self.gamma = gamma
         self.alpha = alpha
 
-    def forward(self, logits, targets):
+    def forward(self, logits, targets, num_pos):
         p = torch.sigmoid(logits)
         ce_loss = F.binary_cross_entropy_with_logits(input=logits, 
                                                      target=targets, 
@@ -26,8 +26,6 @@ class FocalWithLogitsLoss(nn.Module):
 
         if self.reduction == "mean":
             batch_size = logits.size(0)
-            pos_inds = (targets == 1.0).float()
-            num_pos = pos_inds.sum([1,2], keepdim=True).clamp(1)
             loss = (loss / num_pos).sum() / batch_size
 
         elif self.reduction == "sum":
@@ -103,10 +101,11 @@ def loss(pred_cls, pred_giou, pred_ctn, label, num_classes):
     gt_ctn = label[..., -1]
     gt_pos = (gt_ctn > 0.).float()
     num_pos = gt_pos.sum(-1, keepdim=True).clamp(1)
+    print(num_pos)
 
     batch_size = pred_cls.size(0)
     # cls loss
-    cls_loss = cls_loss_function(logits=pred_cls, targets=gt_cls)
+    cls_loss = cls_loss_function(logits=pred_cls, targets=gt_cls, num_pos=num_pos)
         
     # reg loss
     reg_loss = ((1. - pred_giou) * gt_pos / num_pos).sum() / batch_size
