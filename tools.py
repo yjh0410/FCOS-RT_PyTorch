@@ -33,7 +33,7 @@ class FocalWithLogitsLoss(nn.Module):
         return loss
 
 
-def gt_creator(img_size, num_classes, strides, scale_range, label_lists=[], r=1):
+def gt_creator(img_size, num_classes, strides, scale_range, label_lists=[], r :int=1):
     batch_size = len(label_lists)
     w = h = img_size
     gt_tensor = []
