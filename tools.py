@@ -84,7 +84,7 @@ def gt_creator(img_size, num_classes, strides, scale_range, label_lists=[]):
                                         gt_tensor[si][bi, j, i, num_classes + 4] = np.sqrt(min(l, r) / max(l, r) * \
                                                                                            min(t, b) / max(t, b))
                                 
-    return gt_tensor
+    return torch.from_numpy(gt_tensor).float()
 
 
 def loss(pred_cls, pred_giou, pred_ctn, label, num_classes):
