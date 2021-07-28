@@ -108,7 +108,7 @@ def loss(pred_cls, pred_giou, pred_ctn, label, num_classes):
     reg_loss = ((1. - pred_giou) * gt_pos).sum() / num_pos
 
     # ctn loss
-    ctn_loss = (ctn_loss_function(pred_ctn.sigmoid(), gt_ctn) * gt_pos).sum() / num_pos
+    ctn_loss = (ctn_loss_function(pred_ctn[..., 0].sigmoid(), gt_ctn) * gt_pos).sum() / num_pos
 
     # total loss
     total_loss = cls_loss + reg_loss + ctn_loss
