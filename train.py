@@ -8,7 +8,6 @@ import math
 import numpy as np
 
 import torch
-from torch.distributed.distributed_c10d import monitored_barrier
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
