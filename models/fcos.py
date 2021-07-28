@@ -160,7 +160,7 @@ class FCOS(nn.Module):
         return bboxes, scores, cls_inds
 
 
-    def forward(self, x, target=None):
+    def forward(self, x, targets=None):
         # backbone
         c3, c4, c5 = self.backbone(x)
         
@@ -245,7 +245,7 @@ class FCOS(nn.Module):
         if self.trainable:
             # compute giou between pred bboxes and gt bboxes
             x1y1x2y2_pred = reg_pred / self.img_size
-            x1y1x2y2_gt = target[:, :, -5:-1].view(-1, 4)
+            x1y1x2y2_gt = targets[:, :, -5:-1].view(-1, 4)
 
             # giou
             giou_pred = box_ops.giou_score(x1y1x2y2_pred, x1y1x2y2_gt, batch_size=B)
@@ -255,7 +255,7 @@ class FCOS(nn.Module):
                                             pred_cls=cls_pred, 
                                             pred_giou=giou_pred,
                                             pred_ctn=ctn_pred,
-                                            label=target, 
+                                            label=targets, 
                                             num_classes=self.num_classes
                                             )
             
