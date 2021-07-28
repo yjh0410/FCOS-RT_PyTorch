@@ -67,6 +67,11 @@ class FCOS(nn.Module):
         self.reg_det = nn.Conv2d(256, 4, kernel_size=1)
         self.ctn_det = nn.Conv2d(256, 1, kernel_size=1)
 
+        # init weight of cls_pred
+        init_prob = 0.01
+        bias_value = -torch.log(torch.tensor((1. - init_prob) / init_prob))
+        nn.init.constant_(self.cls_det.bias, bias_value)
+
 
     def create_grid(self, img_size):
         total_grid_xy = []
