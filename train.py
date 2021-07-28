@@ -279,11 +279,12 @@ def train():
         # load batch
         for iter_i, (images, targets) in enumerate(dataloader):
             # WarmUp strategy for learning rate
-            if iter_i + epoch_size*epoch < args.wp_epoch and warmup:
-                tmp_lr = base_lr * pow((iter_i+epoch*epoch_size)*1. / (args.wp_iters), 4)
+            ni = iter_i + epoch_size*epoch
+            if ni < args.wp_iters and warmup:
+                tmp_lr = base_lr * pow((ni) / (args.wp_iters), 4)
                 set_lr(optimizer, tmp_lr)
 
-            elif iter_i + epoch_size*epoch >= args.wp_iters and warmup:
+            elif ni >= args.wp_iters and warmup:
                 # warmup is over
                 warmup = False
                 tmp_lr = base_lr
