@@ -72,16 +72,16 @@ def gt_creator(img_size, num_classes, strides, scale_range, label_lists=[], r=1)
                     # By default, we only consider the 3x3 neighborhood of the center point
                     for i in range(gridx - r, gridx + r + 1):
                         for j in range(gridy - r, gridy + r + 1):
-                            if (j >= 0 and j < gt_tensor.shape[1]) and (i >= 0 and i < gt_tensor.shape[2]):
+                            if (j >= 0 and j < gt_tensor[si].shape[1]) and (i >= 0 and i < gt_tensor[si].shape[2]):
                                 t = j - y1_s
                                 b = y2_s - j
                                 l = i - x1_s
                                 r = x2_s - i
                                 if min(t, b, l, r) > 0:
                                     if max(t, b, l, r) >= (sr[0]/s) and max(t, b, l, r) < (sr[1]/s):
-                                        gt_tensor[si, bi, j, i, cls_id] = 1.0
-                                        gt_tensor[si, bi, j, i, num_classes:num_classes + 4] = np.array([x1, y1, x2, y2])
-                                        gt_tensor[si, bi, j, i, num_classes + 4] = np.sqrt(min(l, r) / max(l, r) * \
+                                        gt_tensor[si][bi, j, i, cls_id] = 1.0
+                                        gt_tensor[si][bi, j, i, num_classes:num_classes + 4] = np.array([x1, y1, x2, y2])
+                                        gt_tensor[si][bi, j, i, num_classes + 4] = np.sqrt(min(l, r) / max(l, r) * \
                                                                                            min(t, b) / max(t, b))
                                 
     return gt_tensor
