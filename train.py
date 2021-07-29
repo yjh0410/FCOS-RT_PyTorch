@@ -24,7 +24,7 @@ from data import BaseTransform, detection_collate
 import tools
 
 from utils import distributed_utils
-from utils.augmentations import SSDAugmentation, ColorAugmentation
+from utils.augmentations import WeakAugmentation, StrongAugmentation, ColorAugmentation
 from utils.coco_evaluator import COCOAPIEvaluator
 from utils.voc_evaluator import VOCAPIEvaluator
 from utils.modules import ModelEMA
@@ -49,6 +49,8 @@ def parse_args():
                             default=500, help='wram-up epoch')
     parser.add_argument('--eval_epoch', type=int,
                             default=2, help='interval between evaluations')
+    parser.add_argument('--schedule', type=int,
+                            default=1, help='lr schedule.')
     parser.add_argument('--tfboard', action='store_true', default=False,
                         help='use tensorboard')
     parser.add_argument('--save_folder', default='weights/', type=str, 
@@ -131,13 +133,24 @@ def train():
     if args.ema:
         print('use EMA trick ...')
 
+    # build augmentation
+    if args.schedule < 1:
+        print('Unknow schedule !!')
+        exit(0)
+    elif args.schedule == 1:
+        # 1x schedule
+        augmentation = WeakAugmentation(train_size)
+    else:
+        # train more than 1x
+        augmentation = StrongAugmentation(train_size)
+
     # dataset and evaluator
     if args.dataset == 'voc':
         data_dir = VOC_ROOT
         num_classes = 20
         dataset = VOCDetection(root=data_dir, 
                                 img_size=train_size,
-                                transform=SSDAugmentation(train_size),
+                                transform=augmentation(train_size),
                                 base_transform=ColorAugmentation(train_size),
                                 mosaic=args.mosaic
                                 )
@@ -155,7 +168,7 @@ def train():
         dataset = COCODataset(
                     data_dir=data_dir,
                     img_size=train_size,
-                    transform=SSDAugmentation(train_size),
+                    transform=augmentation(train_size),
                     base_transform=ColorAugmentation(train_size),
                     mosaic=args.mosaic)
 
@@ -215,6 +228,7 @@ def train():
                         )
 
     else:
+        # train on 1 GPU
         model = model.train().to(device)
         # dataloader
         dataloader = torch.utils.data.DataLoader(
@@ -248,11 +262,13 @@ def train():
         tblogger = SummaryWriter(log_path)
     
     batch_size = args.batch_size
-    max_epoch = cfg['max_epoch']
-    lr_epoch = cfg['lr_epoch']
+    max_epoch = cfg['max_epoch'] * args.schedule
+    lr_epoch = [e * args.schedule for e in cfg['lr_epoch']]
     epoch_size = len(dataset) // (batch_size * args.num_gpu)
+    print('Max epoch: ', max_epoch)
+    print('Lr epoch:', lr_epoch)
 
-    # optimizer setup
+    # build optimizer
     base_lr = cfg['lr']
     tmp_lr = base_lr
     optimizer = optim.SGD(model.parameters(), 
@@ -261,11 +277,11 @@ def train():
                             weight_decay=1e-4
                             )
     
-
     best_map = 0.
     t0 = time.time()
     warmup = True
 
+    # start to train
     for epoch in range(args.start_epoch, max_epoch):
         # set epoch if DDP
         if args.distributed:
@@ -276,7 +292,7 @@ def train():
             tmp_lr = tmp_lr * 0.1
             set_lr(optimizer, tmp_lr)
 
-        # load batch
+        # load a batch
         for iter_i, (images, targets) in enumerate(dataloader):
             # WarmUp strategy for learning rate
             ni = iter_i + epoch_size*epoch
@@ -345,7 +361,7 @@ def train():
                     # viz loss
                     tblogger.add_scalar('cls loss',  loss_dict_reduced['cls_loss'].item(),  iter_i + epoch * epoch_size)
                     tblogger.add_scalar('reg loss',  loss_dict_reduced['reg_loss'].item(),  iter_i + epoch * epoch_size)
-                    tblogger.add_scalar('iou loss',  loss_dict_reduced['ctn_loss'].item(),  iter_i + epoch * epoch_size)
+                    tblogger.add_scalar('ctn loss',  loss_dict_reduced['ctn_loss'].item(),  iter_i + epoch * epoch_size)
                 
                 t1 = time.time()
                 print('[Epoch %d/%d][Iter %d/%d][lr %.6f][Loss: cls %.2f || reg %.2f || ctn %.2f || size %d || time: %.2f]'

@@ -1,2 +1,2 @@
-from .augmentations import SSDAugmentation, ColorAugmentation
+from .augmentations import WeakAugmentation, StrongAugmentation, ColorAugmentation
 from .modules import *
