@@ -176,46 +176,19 @@ class FCOS(nn.Module):
         p6 = self.latter_4(p5)
         p7 = self.latter_5(p6)
 
+        features = [p3, p4, p5, p6, p7]
+        cls_dets = []
+        reg_dets = []
+        ctn_dets = []
+
         # head
-        p3_cls_head = self.cls_head(p3)
-        p3_reg_head = self.reg_head(p3)
-
-        p4_cls_head = self.cls_head(p4)
-        p4_reg_head = self.reg_head(p4)
-
-        p5_cls_head = self.cls_head(p5)
-        p5_reg_head = self.reg_head(p5)
-
-        p6_cls_head = self.cls_head(p6)
-        p6_reg_head = self.reg_head(p6)
-
-        p7_cls_head = self.cls_head(p7)
-        p7_reg_head = self.reg_head(p7)
-
-        # det
-        p3_cls_det = self.cls_det(p3_cls_head)
-        p3_reg_det = self.reg_det(p3_reg_head)
-        p3_ctn_det = self.ctn_det(p3_reg_head)
-
-        p4_cls_det = self.cls_det(p4_cls_head)
-        p4_reg_det = self.reg_det(p4_reg_head)
-        p4_ctn_det = self.ctn_det(p4_reg_head)
-
-        p5_cls_det = self.cls_det(p5_cls_head)
-        p5_reg_det = self.reg_det(p5_reg_head)
-        p5_ctn_det = self.ctn_det(p5_reg_head)
-
-        p6_cls_det = self.cls_det(p6_cls_head)
-        p6_reg_det = self.reg_det(p6_reg_head)
-        p6_ctn_det = self.ctn_det(p6_reg_head)
-
-        p7_cls_det = self.cls_det(p7_cls_head)
-        p7_reg_det = self.reg_det(p7_reg_head)
-        p7_ctn_det = self.ctn_det(p7_reg_head)
-
-        cls_dets = [p3_cls_det, p4_cls_det, p5_cls_det, p6_cls_det, p7_cls_det]
-        reg_dets = [p3_reg_det, p4_reg_det, p5_reg_det, p6_reg_det, p7_reg_det]
-        ctn_dets = [p3_ctn_det, p4_ctn_det, p5_ctn_det, p6_ctn_det, p7_ctn_det]
+        for p in features:
+            cls_head = self.cls_head(p)
+            reg_head = self.reg_head(p)
+            # det
+            cls_dets.append(self.cls_det(cls_head))
+            reg_dets.append(self.reg_det(reg_head))
+            ctn_dets.append(self.ctn_det(reg_head))
 
         cls_pred = []
         reg_pred = []
@@ -230,8 +203,8 @@ class FCOS(nn.Module):
             reg_det[..., :2] = (self.grid_cell[i] - reg_det[..., :2].exp()) * s # x1y1
             reg_det[..., 2:] = (self.grid_cell[i] + reg_det[..., 2:].exp()) * s # x2y2
 
-            # [B, 1, H, W] -> [B, H*W, 1]
-            ctn_det = ctn_dets[i].permute(0, 2, 3, 1).reshape(B, -1, 1)
+            # [B, 1, H, W] -> [B, H*W]
+            ctn_det = ctn_dets[i].permute(0, 2, 3, 1).reshape(B, -1)
 
             cls_pred.append(cls_det)
             reg_pred.append(reg_det)
