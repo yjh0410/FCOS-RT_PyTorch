@@ -33,8 +33,8 @@ def parse_args():
                         help='use cuda.')
     parser.add_argument('--batch_size', default=16, type=int, 
                         help='Batch size for training')
-    parser.add_argument('--start_epoch', type=int, default=0,
-                        help='start epoch to train')
+    parser.add_argument('--start_iter', type=int, default=0,
+                        help='start iteration to train')
     parser.add_argument('-r', '--resume', default=None, type=str, 
                         help='keep training')
     parser.add_argument('--num_workers', default=8, type=int, 
@@ -241,6 +241,8 @@ def train():
                         pin_memory=True
                         )
 
+    batch_iter = iter(dataloader)
+
     # keep training
     if args.resume is not None:
         print('keep training model: %s' % (args.resume))
@@ -263,49 +265,70 @@ def train():
         tblogger = SummaryWriter(log_path)
     
     batch_size = args.batch_size
-    max_epoch = cfg['max_epoch'] * args.schedule
-    lr_epoch = [e * args.schedule for e in cfg['lr_epoch']]
+    max_iters = cfg['max_iters'] * args.schedule
+    lr_step = [e * args.schedule for e in cfg['lr_step']]
     epoch_size = len(dataset) // (batch_size * args.num_gpu)
-    print('Max epoch: ', max_epoch)
-    print('Lr epoch:', lr_epoch)
+    print('Max iter: ', max_iters)
+    print('Lr step:', lr_step)
 
     # build optimizer
     base_lr = cfg['lr']
     tmp_lr = base_lr
     optimizer = optim.SGD(model.parameters(), 
-                            lr=tmp_lr, 
-                            momentum=0.9,
-                            weight_decay=1e-4
-                            )
+                          lr=tmp_lr, 
+                          momentum=0.9,
+                          weight_decay=1e-4
+                          )
     
     best_map = 0.
     t0 = time.time()
-    warmup = True
-
+    epoch = 1
     # start to train
-    for epoch in range(args.start_epoch, max_epoch):
-        # set epoch if DDP
-        if args.distributed:
-            dataloader.sampler.set_epoch(epoch)
+    for iter_i in range(args.start_iter, max_iters):
+        # load a batch
+        try:
+            images, targets = next(batch_iter)
+        except StopIteration:
+            # evaluate
+            if args.ema:
+                model_eval = ema.ema
+            else:
+                model_eval = model.module if args.distributed else model
+
+            best_map = eval(model=model_eval,
+                            val_size=val_size,
+                            path_to_save=path_to_save,
+                            epoch=epoch,
+                            best_map=best_map,
+                            evaluator=evaluator,
+                            tblogger=tblogger,
+                            local_rank=local_rank,
+                            ddp=args.distributed,
+                            dataset=args.dataset,
+                            model_name=args.version)
+
+            # set epoch if DDP
+            if args.distributed:
+                dataloader.sampler.set_epoch(epoch)
+            epoch += 1
+            # rebuild batch iter
+            batch_iter = iter(dataloader)
+            images, targets = next(batch_iter)
 
         # use step lr
-        if epoch in lr_epoch:
+        if iter_i in lr_step:
             tmp_lr = tmp_lr * 0.1
             set_lr(optimizer, tmp_lr)
 
-        # load a batch
-        for iter_i, (images, targets) in enumerate(dataloader):
-            # WarmUp strategy for learning rate
-            ni = iter_i + epoch_size*epoch
-            if ni < args.wp_iters and warmup:
-                tmp_lr = base_lr * pow((ni) / (args.wp_iters), 4)
-                set_lr(optimizer, tmp_lr)
+        # WarmUp strategy for learning rate
+        if iter_i < args.wp_iters:
+            tmp_lr = base_lr * pow(iter_i / args.wp_iters, 4)
+            set_lr(optimizer, tmp_lr)
 
-            elif ni >= args.wp_iters and warmup:
-                # warmup is over
-                warmup = False
-                tmp_lr = base_lr
-                set_lr(optimizer, tmp_lr)
+        elif iter_i == args.wp_iters:
+            # warmup is over
+            tmp_lr = base_lr
+            set_lr(optimizer, tmp_lr)
 
             # multi-scale trick
             if iter_i % 10 == 0 and iter_i > 0 and args.multi_scale:
@@ -364,9 +387,9 @@ def train():
                     tblogger.add_scalar('ctn loss',  loss_dict_reduced['ctn_loss'].item(),  iter_i + epoch * epoch_size)
                 
                 t1 = time.time()
-                print('[Epoch %d/%d][Iter %d/%d][lr %.6f][Loss: cls %.2f || reg %.2f || ctn %.2f || size %d || time: %.2f]'
-                        % (epoch+1, 
-                           max_epoch, 
+                print('[Epoch %d][Iter %d/%d][lr %.6f][Loss: cls %.2f || reg %.2f || ctn %.2f || size %d || time: %.2f]'
+                        % (epoch, 
+                           max_iters, 
                            iter_i, 
                            epoch_size, 
                            tmp_lr,
@@ -386,42 +409,50 @@ def train():
             else:
                 model_eval = model.module if args.distributed else model
 
-            # set eval mode
-            model_eval.trainable = False
-            model_eval.set_grid(val_size)
-            model_eval.eval()
-
-            if local_rank == 0:
-                # evaluate
-                evaluator.evaluate(model_eval)
-
-                cur_map = evaluator.map if args.dataset == 'voc' else evaluator.ap50_95
-                if cur_map > best_map:
-                    # update best-map
-                    best_map = cur_map
-                    # save model
-                    print('Saving state, epoch:', epoch + 1)
-                    torch.save(model_eval.state_dict(), os.path.join(path_to_save, 
-                                args.version + '_' + repr(epoch + 1) + '_' + str(round(best_map, 2)) + '.pth')
-                                )  
-                if args.tfboard:
-                    if args.dataset == 'voc':
-                        tblogger.add_scalar('07test/mAP', evaluator.map, epoch)
-                    elif args.dataset == 'coco':
-                        tblogger.add_scalar('val/AP50_95', evaluator.ap50_95, epoch)
-                        tblogger.add_scalar('val/AP50', evaluator.ap50, epoch)
-
-            if args.distributed:
-                # wait for all processes to synchronize
-                dist.barrier()
-
-            # set train mode.
-            model_eval.trainable = True
-            model_eval.set_grid(train_size)
-            model_eval.train()
     
     if args.tfboard:
         tblogger.close()
+
+
+def eval(model, 
+         val_size, 
+         path_to_save, 
+         epoch, 
+         best_map=-1., 
+         evaluator=None, 
+         tblogger=None, 
+         local_rank=0, 
+         ddp=False,
+         dataset='voc', 
+         model_name='fcos'):
+    # set eval mode
+    model.trainable = False
+    model.set_grid(val_size)
+    model.eval()
+
+    if local_rank == 0:
+        # evaluate
+        evaluator.evaluate(model)
+
+        cur_map = evaluator.map if dataset == 'voc' else evaluator.ap50_95
+        if cur_map > best_map:
+            # update best-map
+            best_map = cur_map
+            # save model
+            print('Saving state, epoch:', epoch + 1)
+            torch.save(model.state_dict(), os.path.join(path_to_save, 
+                        model_name + '_' + repr(epoch + 1) + '_' + str(round(best_map, 2)) + '.pth')
+                        )  
+        if tblogger is not None:
+            if dataset == 'voc':
+                tblogger.add_scalar('07test/mAP', evaluator.map, epoch)
+            elif dataset == 'coco':
+                tblogger.add_scalar('val/AP50_95', evaluator.ap50_95, epoch)
+                tblogger.add_scalar('val/AP50', evaluator.ap50, epoch)
+
+    if ddp:
+        # wait for all processes to synchronize
+        dist.barrier()
 
 
 def set_lr(optimizer, lr):
