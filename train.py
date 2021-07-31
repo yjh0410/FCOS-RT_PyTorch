@@ -426,24 +426,27 @@ def eval(model,
     model.eval()
 
     if local_rank == 0:
-        # evaluate
-        evaluator.evaluate(model)
+        if evaluator is None:
+            print('continue training ...')
+        else:
+            # evaluate
+            evaluator.evaluate(model)
 
-        cur_map = evaluator.map if dataset == 'voc' else evaluator.ap50_95
-        if cur_map > best_map:
-            # update best-map
-            best_map = cur_map
-            # save model
-            print('Saving state, epoch:', epoch + 1)
-            torch.save(model.state_dict(), os.path.join(path_to_save, 
-                        model_name + '_' + repr(epoch + 1) + '_' + str(round(best_map, 2)) + '.pth')
-                        )  
-        if tblogger is not None:
-            if dataset == 'voc':
-                tblogger.add_scalar('07test/mAP', evaluator.map, epoch)
-            elif dataset == 'coco':
-                tblogger.add_scalar('val/AP50_95', evaluator.ap50_95, epoch)
-                tblogger.add_scalar('val/AP50', evaluator.ap50, epoch)
+            cur_map = evaluator.map if dataset == 'voc' else evaluator.ap50_95
+            if cur_map > best_map:
+                # update best-map
+                best_map = cur_map
+                # save model
+                print('Saving state, epoch:', epoch + 1)
+                torch.save(model.state_dict(), os.path.join(path_to_save, 
+                            model_name + '_' + repr(epoch + 1) + '_' + str(round(best_map, 2)) + '.pth')
+                            )  
+            if tblogger is not None:
+                if dataset == 'voc':
+                    tblogger.add_scalar('07test/mAP', evaluator.map, epoch)
+                elif dataset == 'coco':
+                    tblogger.add_scalar('val/AP50_95', evaluator.ap50_95, epoch)
+                    tblogger.add_scalar('val/AP50', evaluator.ap50, epoch)
 
     if ddp:
         # wait for all processes to synchronize
