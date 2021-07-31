@@ -265,6 +265,7 @@ def train():
 
         tblogger = SummaryWriter(log_path)
     
+    # basic
     batch_size = args.batch_size
     max_iters = cfg['max_iters'] * args.schedule
     lr_step = [e * args.schedule for e in cfg['lr_step']]
