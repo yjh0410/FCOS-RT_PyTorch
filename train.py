@@ -4,7 +4,6 @@ import os
 import random
 import argparse
 import time
-import math
 import numpy as np
 
 import torch
@@ -136,9 +135,11 @@ def train():
         exit(0)
     elif args.schedule == 1:
         # 1x schedule
+        print('use weak augmentaion for 1x schedule ...')
         augmentation = WeakAugmentation(train_size)
     else:
         # train more than 1x
+        print('use strong augmentaion for more than 1x schedule ...')
         augmentation = StrongAugmentation(train_size)
 
     # dataset and evaluator
