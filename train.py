@@ -255,6 +255,7 @@ def train():
     ema = ModelEMA(model) if args.ema else None
 
     # use tfboard
+    tblogger = None
     if args.tfboard:
         print('use tensorboard')
         from torch.utils.tensorboard import SummaryWriter
