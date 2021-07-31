@@ -4,9 +4,6 @@
     Licensed under The MIT License [see LICENSE for details]
 """
 
-import torch
-import torch.nn as nn
-import torch.backends.cudnn as cudnn
 from torch.autograd import Variable
 from data import VOCDetection
 import sys

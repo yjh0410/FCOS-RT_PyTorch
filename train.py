@@ -284,6 +284,48 @@ def train():
         if args.distributed:
             dataloader.sampler.set_epoch(epoch)
 
+        # evaluation
+        if (epoch) % args.eval_epoch == 0:
+            if args.ema:
+                model_eval = ema.ema
+            else:
+                model_eval = model.module if args.distributed else model
+
+            # set eval mode
+            model_eval.trainable = False
+            model_eval.set_grid(val_size)
+            model_eval.eval()
+
+            if local_rank == 0:
+                # evaluate
+                evaluator.evaluate(model_eval)
+
+                cur_map = evaluator.map if args.dataset == 'voc' else evaluator.ap50_95
+                if cur_map > best_map:
+                    # update best-map
+                    best_map = cur_map
+                    # save model
+                    print('Saving state, epoch:', epoch + 1)
+                    torch.save(model_eval.state_dict(), os.path.join(path_to_save, 
+                                args.version + '_' + repr(epoch + 1) + '_' + str(round(best_map, 2)) + '.pth')
+                                )  
+                if args.tfboard:
+                    if args.dataset == 'voc':
+                        tblogger.add_scalar('07test/mAP', evaluator.map, epoch)
+                    elif args.dataset == 'coco':
+                        tblogger.add_scalar('val/AP50_95', evaluator.ap50_95, epoch)
+                        tblogger.add_scalar('val/AP50', evaluator.ap50, epoch)
+
+            if args.distributed:
+                # wait for all processes to synchronize
+                dist.barrier()
+
+            # set train mode.
+            model_eval.trainable = True
+            model_eval.set_grid(train_size)
+            model_eval.train()
+    
+
         # use step lr
         if epoch in lr_epoch:
             tmp_lr = tmp_lr * 0.1
