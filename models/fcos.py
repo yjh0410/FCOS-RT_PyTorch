@@ -167,12 +167,14 @@ class FCOS(nn.Module):
         # fpn
         p5 = self.latter_3(c5)
         p5_up = F.interpolate(p5, scale_factor=2)
+        p5 = self.smooth_3(p5)
 
-        p4 = self.smooth_2(self.latter_2(c4) + p5_up)
+        p4 = self.latter_2(c4) + p5_up
         p4_up = F.interpolate(p4, scale_factor=2)
+        p4 = self.smooth_2(p4)
 
         p3 = self.smooth_1(self.latter_1(c3) + p4_up)
-
+        # p5 -> p6, p6 -> p7
         p6 = self.latter_4(p5)
         p7 = self.latter_5(p6)
 
