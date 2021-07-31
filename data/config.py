@@ -4,6 +4,7 @@
 train_cfg = {
     # network
     'backbone': 'r18',
+    'freeze_bn': True,
     # for multi-scale trick
     'img_size': 896,
     'train_size': 768,

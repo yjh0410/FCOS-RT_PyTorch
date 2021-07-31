@@ -11,7 +11,15 @@ from utils.loss import loss
 
 
 class FCOS(nn.Module):
-    def __init__(self, device, img_size, num_classes=80, trainable=False, conf_thresh=0.05, nms_thresh=0.5, bk='r18'):
+    def __init__(self, 
+                 device, 
+                 img_size, 
+                 num_classes=80, 
+                 trainable=False, 
+                 conf_thresh=0.05, 
+                 nms_thresh=0.5, 
+                 bk='r18',
+                 freeze_bn=False):
         super(FCOS, self).__init__()
         self.device = device
         self.img_size = img_size
@@ -20,22 +28,23 @@ class FCOS(nn.Module):
         self.conf_thresh = conf_thresh
         self.nms_thresh = nms_thresh
         self.backbone = bk
+        self.freeze_bn = freeze_bn
         self.strides = [8, 16, 32, 64, 128]
         self.grid_cell = self.create_grid(img_size)
 
         if self.backbone == 'r18':
             print('use backbone: resnet-18', )
-            self.backbone = resnet18(pretrained=trainable)
+            self.backbone = resnet18(pretrained=trainable, freeze_bn=freeze_bn)
             c3, c4, c5 = 128, 256, 512
 
         elif self.backbone == 'r50':
             print('use backbone: resnet-50', )
-            self.backbone = resnet50(pretrained=trainable)
+            self.backbone = resnet50(pretrained=trainable, freeze_bn=freeze_bn)
             c3, c4, c5 = 128, 256, 512
 
         elif self.backbone == 'r101':
             print('use backbone: resnet-101', )
-            self.backbone = resnet101(pretrained=trainable)
+            self.backbone = resnet101(pretrained=trainable, freeze_bn=freeze_bn)
             c3, c4, c5 = 128, 256, 512
 
         # latter layers

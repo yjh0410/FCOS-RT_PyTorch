@@ -1,3 +1,4 @@
+from utils import modules
 import torch
 import torch.nn as nn
 import torch.utils.model_zoo as model_zoo
@@ -125,6 +126,7 @@ class ResNet(nn.Module):
                 elif isinstance(m, BasicBlock):
                     nn.init.constant_(m.bn2.weight, 0)
 
+
     def _make_layer(self, block, planes, blocks, stride=1):
         downsample = None
         if stride != 1 or self.inplanes != planes * block.expansion:
@@ -141,6 +143,12 @@ class ResNet(nn.Module):
 
         return nn.Sequential(*layers)
 
+    def freeze_bn(self):
+        '''Freeze BatchNorm layers.'''
+        for m in self.modules():
+            if isinstance(m, nn.BatchNorm2d):
+                m.eval()
+
     def forward(self, x):
         c1 = self.conv1(x)
         c1 = self.bn1(c1)
@@ -154,7 +162,7 @@ class ResNet(nn.Module):
 
         return c3, c4, c5
             
-def resnet18(pretrained=False, **kwargs):
+def resnet18(pretrained=False, freeze_bn=False, **kwargs):
     """Constructs a ResNet-18 model.
 
     Args:
@@ -164,9 +172,14 @@ def resnet18(pretrained=False, **kwargs):
     if pretrained:
         # strict = False as we don't need fc layer params.
         model.load_state_dict(model_zoo.load_url(model_urls['resnet18']), strict=False)
+        # freeze bn
+        if freeze_bn:
+            print('freeze bn ...')
+            model.freeze_bn()
+
     return model
 
-def resnet34(pretrained=False, **kwargs):
+def resnet34(pretrained=False, freeze_bn=False, **kwargs):
     """Constructs a ResNet-34 model.
 
     Args:
@@ -175,9 +188,14 @@ def resnet34(pretrained=False, **kwargs):
     model = ResNet(BasicBlock, [3, 4, 6, 3], **kwargs)
     if pretrained:
         model.load_state_dict(model_zoo.load_url(model_urls['resnet34']), strict=False)
+        # freeze bn
+        if freeze_bn:
+            print('freeze bn ...')
+            model.freeze_bn()
+
     return model
 
-def resnet50(pretrained=False, **kwargs):
+def resnet50(pretrained=False, freeze_bn=False, **kwargs):
     """Constructs a ResNet-50 model.
 
     Args:
@@ -186,9 +204,14 @@ def resnet50(pretrained=False, **kwargs):
     model = ResNet(Bottleneck, [3, 4, 6, 3], **kwargs)
     if pretrained:
         model.load_state_dict(model_zoo.load_url(model_urls['resnet50']), strict=False)
+        # freeze bn
+        if freeze_bn:
+            print('freeze bn ...')
+            model.freeze_bn()
+
     return model
 
-def resnet101(pretrained=False, **kwargs):
+def resnet101(pretrained=False, freeze_bn=False, **kwargs):
     """Constructs a ResNet-101 model.
 
     Args:
@@ -197,9 +220,14 @@ def resnet101(pretrained=False, **kwargs):
     model = ResNet(Bottleneck, [3, 4, 23, 3], **kwargs)
     if pretrained:
         model.load_state_dict(model_zoo.load_url(model_urls['resnet101']), strict=False)
+        # freeze bn
+        if freeze_bn:
+            print('freeze bn ...')
+            model.freeze_bn()
+
     return model
 
-def resnet152(pretrained=False, **kwargs):
+def resnet152(pretrained=False, freeze_bn=False, **kwargs):
     """Constructs a ResNet-152 model.
 
     Args:
@@ -208,6 +236,11 @@ def resnet152(pretrained=False, **kwargs):
     model = ResNet(Bottleneck, [3, 8, 36, 3], **kwargs)
     if pretrained:
         model.load_state_dict(model_zoo.load_url(model_urls['resnet152']))
+        # freeze bn
+        if freeze_bn:
+            print('freeze bn ...')
+            model.freeze_bn()
+
     return model
 
 if __name__=='__main__':
