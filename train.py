@@ -298,6 +298,7 @@ def train():
                 model_eval = model.module if args.distributed else model
 
             best_map = eval(model=model_eval,
+                            train_size=train_size,
                             val_size=val_size,
                             path_to_save=path_to_save,
                             epoch=epoch,
@@ -308,7 +309,7 @@ def train():
                             ddp=args.distributed,
                             dataset=args.dataset,
                             model_name=args.version)
-
+            
             # set epoch if DDP
             if args.distributed:
                 dataloader.sampler.set_epoch(epoch)
@@ -408,6 +409,7 @@ def train():
 
 
 def eval(model, 
+         train_size,
          val_size, 
          path_to_save, 
          epoch, 
@@ -446,6 +448,12 @@ def eval(model,
     if ddp:
         # wait for all processes to synchronize
         dist.barrier()
+
+    # set train mode
+    model.trainable = True
+    model.set_grid(train_size)
+    model.train()
+
 
 
 def set_lr(optimizer, lr):
