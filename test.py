@@ -43,7 +43,7 @@ def vis(img, bboxes, scores, cls_inds, thresh, class_colors, class_names, class_
             if scores[i] > thresh:
                 cv2.rectangle(img, (int(xmin), int(ymin)), (int(xmax), int(ymax)), class_colors[int(cls_indx)], 1)
                 cv2.rectangle(img, (int(xmin), int(abs(ymin)-20)), (int(xmax), int(ymin)), class_colors[int(cls_indx)], -1)
-                mess = '%s' % (class_names[int(cls_indx)])
+                mess = '%s: %.3f' % (class_names[int(cls_indx)], scores[i])
                 cv2.putText(img, mess, (int(xmin), int(ymin-5)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 1)
 
     elif dataset == 'coco-val' and class_indexs is not None:
@@ -55,8 +55,7 @@ def vis(img, bboxes, scores, cls_inds, thresh, class_colors, class_names, class_
                 cv2.rectangle(img, (int(xmin), int(abs(ymin)-20)), (int(xmax), int(ymin)), class_colors[int(cls_indx)], -1)
                 cls_id = class_indexs[int(cls_indx)]
                 cls_name = class_names[cls_id]
-                # mess = '%s: %.3f' % (cls_name, scores[i])
-                mess = '%s' % (cls_name)
+                mess = '%s: %.3f' % (cls_name, scores[i])
                 cv2.putText(img, mess, (int(xmin), int(ymin-5)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 1)
 
     return img
