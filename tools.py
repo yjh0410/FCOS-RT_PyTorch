@@ -29,6 +29,7 @@ class FocalWithLogitsLoss(nn.Module):
             pos_inds = (targets == 1.0).float()
             num_pos = pos_inds.sum([1, 2], keepdim=True).clamp(1)
             print(num_pos.size())
+            print(loss.size())
             loss = (loss / num_pos).sum() / batch_size
 
         elif self.reduction == "sum":
