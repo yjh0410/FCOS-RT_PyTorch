@@ -55,6 +55,8 @@ def parse_args():
     # model
     parser.add_argument('-v', '--version', default='fcos',
                         help='fcos')
+    parser.add_argument('-bk', '--backbone', default='r18',
+                        help='r18, r50, r101')
 
     # dataset
     parser.add_argument('-d', '--dataset', default='coco',
@@ -188,7 +190,7 @@ def train():
     # buile model and config file
     if model_name == 'fcos':
         from models.fcos import FCOS
-        backbone = cfg['backbone']
+        backbone = args.backbone
         # model
         net = FCOS(device=device, 
                     img_size=train_size, 

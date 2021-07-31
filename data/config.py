@@ -3,7 +3,6 @@
 # train
 train_cfg = {
     # network
-    'backbone': 'r18',
     'freeze_bn': True,
     # for multi-scale trick
     'img_size': 768,
