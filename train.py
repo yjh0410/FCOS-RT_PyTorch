@@ -150,7 +150,7 @@ def train():
         num_classes = 20
         dataset = VOCDetection(root=data_dir, 
                                 img_size=train_size,
-                                transform=augmentation(train_size),
+                                transform=augmentation,
                                 base_transform=ColorAugmentation(train_size),
                                 mosaic=args.mosaic
                                 )
@@ -168,7 +168,7 @@ def train():
         dataset = COCODataset(
                     data_dir=data_dir,
                     img_size=train_size,
-                    transform=augmentation(train_size),
+                    transform=augmentation,
                     base_transform=ColorAugmentation(train_size),
                     mosaic=args.mosaic)
 
