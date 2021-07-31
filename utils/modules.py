@@ -24,7 +24,7 @@ class Conv(nn.Module):
                 nn.BatchNorm2d(out_ch)
             )
         self.init_weight()
-        
+
     def init_weight(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -34,6 +34,7 @@ class Conv(nn.Module):
 
     def forward(self, x):
         return self.convs(x)
+
 
 class ModelEMA(object):
     def __init__(self, model, decay=0.9999, updates=0):
