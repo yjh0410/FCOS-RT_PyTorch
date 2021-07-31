@@ -70,7 +70,7 @@ def test(net, device, testset, transform, thresh, class_colors=None, class_names
     for index in range(num_images):
         print('Testing image {:d}/{:d}....'.format(index+1, num_images))
         img_raw, _ = testset.pull_image(index)
-        h, w, _ = img.shape
+        h, w, _ = img_raw.shape
         size = np.array([[w, h, w, h]])
 
         # preprocess
