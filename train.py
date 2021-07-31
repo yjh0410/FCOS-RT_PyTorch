@@ -389,9 +389,8 @@ def train():
             t1 = time.time()
             print('[Epoch %d][Iter %d/%d][lr %.6f][Loss: cls %.2f || reg %.2f || ctn %.2f || size %d || time: %.2f]'
                     % (epoch, 
-                        max_iters, 
                         iter_i, 
-                        epoch_size, 
+                        max_iters, 
                         tmp_lr,
                         loss_dict_reduced['cls_loss'].item(), 
                         loss_dict_reduced['reg_loss'].item(), 
