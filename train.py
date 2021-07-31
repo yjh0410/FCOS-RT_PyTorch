@@ -193,7 +193,8 @@ def train():
                     img_size=train_size, 
                     num_classes=num_classes, 
                     trainable=True, 
-                    bk=backbone
+                    bk=backbone,
+                    freeze_bn=cfg['freeze_bn']
                     )
     
     else:
