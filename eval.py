@@ -1,7 +1,8 @@
 import torch
-import torch.nn as nn
-from data import *
 import argparse
+
+from data import *
+
 from utils.voc_evaluator import VOCAPIEvaluator
 from utils.coco_evaluator import COCOAPIEvaluator
 

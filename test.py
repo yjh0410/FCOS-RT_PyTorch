@@ -1,15 +1,15 @@
 import os
 import argparse
-from typing import Tuple
-import torch
-import torch.nn as nn
-import torch.backends.cudnn as cudnn
-from data import *
-from data import config
 import numpy as np
 import cv2
-import tools
 import time
+
+import torch
+import torch.backends.cudnn as cudnn
+
+from data import *
+from data import config
+
 
 
 parser = argparse.ArgumentParser(description='FCOS Detection')
