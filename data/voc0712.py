@@ -25,7 +25,7 @@ VOC_CLASSES = (  # always index 0
     'motorbike', 'person', 'pottedplant',
     'sheep', 'sofa', 'train', 'tvmonitor')
 
-VOC_ROOT = "/home/k545/object-detection/dataset/VOCdevkit/"
+VOC_ROOT = "/home/jxk/object-detection/dataset/VOCdevkit/"
 
 
 class VOCAnnotationTransform(object):
