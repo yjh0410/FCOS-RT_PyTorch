@@ -208,7 +208,7 @@ class FCOS(nn.Module):
             reg_det[..., 2:] = (self.grid_cell[i] + reg_det[..., 2:].exp()) * s # x2y2
 
             # [B, 1, H, W] -> [B, H*W]
-            ctn_det = ctn_dets[i].permute(0, 2, 3, 1).reshape(B, -1)
+            ctn_det = ctn_dets[i].permute(0, 2, 3, 1).reshape(B, -1, 1)
 
             cls_pred.append(cls_det)
             reg_pred.append(reg_det)
