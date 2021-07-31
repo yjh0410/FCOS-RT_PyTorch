@@ -83,7 +83,13 @@ class FCOS(nn.Module):
 
 
     def init_weight(self):
-        for m in self.modules():
+        for m in [self.latter_1, self.latter_2, self.latter_3, self.latter_4, self.latter_5]:
+            if isinstance(m, nn.Conv2d):
+                nn.init.normal_(m.weight, mean=0, std=0.01)
+                if hasattr(m, 'bias') and m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+        
+        for m in [self.smooth_1, self.smooth_2, self.smooth_3]:
             if isinstance(m, nn.Conv2d):
                 nn.init.normal_(m.weight, mean=0, std=0.01)
                 if hasattr(m, 'bias') and m.bias is not None:
@@ -93,6 +99,7 @@ class FCOS(nn.Module):
         init_prob = 0.01
         bias_value = -torch.log(torch.tensor((1. - init_prob) / init_prob))
         nn.init.constant_(self.cls_det.bias, bias_value)
+        
 
 
     def create_grid(self, img_size):
