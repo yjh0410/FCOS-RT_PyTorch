@@ -13,15 +13,12 @@ import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from data import *
-import tools
-
 from data import VOC_CLASSES, VOC_ROOT, VOCDetection
 from data import coco_root, COCODataset
 from data import config
 from data import BaseTransform, detection_collate
 
-import tools
+from create_gt import gt_creator
 
 from utils import distributed_utils
 from utils.augmentations import WeakAugmentation, StrongAugmentation, ColorAugmentation
@@ -320,13 +317,12 @@ def train():
             targets = [label.tolist() for label in targets]
             # vis_data(images, targets, train_size)
             # continue
-            targets = tools.gt_creator(img_size=train_size,
-                                       num_classes=num_classes, 
-                                       strides=net.strides, 
-                                       scale_range=cfg['scale_range'],
-                                       label_lists=targets
-                                       )
-                                        
+            targets = gt_creator(img_size=train_size,
+                                 num_classes=num_classes, 
+                                 strides=net.strides, 
+                                 scale_range=cfg['scale_range'],
+                                 label_lists=targets
+                                 )        
             # to device
             images = images.to(device)
             targets = targets.to(device)

@@ -1,11 +1,13 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
+
+from backbone import *
+
 from utils.modules import Conv
 import utils.box_ops as box_ops
-from backbone import *
-import numpy as np
-import tools
+from utils.loss import loss
 
 
 class FCOS(nn.Module):
@@ -226,7 +228,7 @@ class FCOS(nn.Module):
             giou_pred = box_ops.giou_score(x1y1x2y2_pred, x1y1x2y2_gt, batch_size=B)
 
             # compute loss
-            cls_loss, reg_loss, ctn_loss, total_loss = tools.loss(
+            cls_loss, reg_loss, ctn_loss, total_loss = loss(
                                             pred_cls=cls_pred, 
                                             pred_giou=giou_pred,
                                             pred_ctn=ctn_pred,
