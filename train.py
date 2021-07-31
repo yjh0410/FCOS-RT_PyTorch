@@ -330,85 +330,77 @@ def train():
             tmp_lr = base_lr
             set_lr(optimizer, tmp_lr)
 
-            # multi-scale trick
-            if iter_i % 10 == 0 and iter_i > 0 and args.multi_scale:
-                # randomly choose a new size
-                r = cfg['random_size_range']
-                train_size = random.randint(r[0], r[1]) * 128
-                model.module.set_grid(train_size) if args.distributed else model.set_grid(train_size)
-            if args.multi_scale:
-                # interpolate
-                images = torch.nn.functional.interpolate(images, size=train_size, mode='bilinear', align_corners=False)
+        # multi-scale trick
+        if iter_i % 10 == 0 and iter_i > 0 and args.multi_scale:
+            # randomly choose a new size
+            r = cfg['random_size_range']
+            train_size = random.randint(r[0], r[1]) * 128
+            model.module.set_grid(train_size) if args.distributed else model.set_grid(train_size)
+        if args.multi_scale:
+            # interpolate
+            images = torch.nn.functional.interpolate(images, size=train_size, mode='bilinear', align_corners=False)
+        
+        # make labels
+        targets = [label.tolist() for label in targets]
+        # vis_data(images, targets, train_size)
+        # continue
+        targets = gt_creator(img_size=train_size,
+                                num_classes=num_classes, 
+                                strides=net.strides, 
+                                scale_range=cfg['scale_range'],
+                                label_lists=targets
+                                )        
+        # to device
+        images = images.to(device)
+        targets = targets.to(device)
+
+        # forward
+        cls_loss, reg_loss, ctn_loss, total_loss = model(images, targets=targets)
+
+        loss_dict = dict(
+            cls_loss=cls_loss,
+            reg_loss=reg_loss,
+            ctn_loss=ctn_loss,
+            total_loss=total_loss
+        )
+        loss_dict_reduced = distributed_utils.reduce_loss_dict(loss_dict)
+
+        # check NAN
+        if torch.isnan(total_loss):
+            continue
+
+        # backprop
+        total_loss.backward()        
+        optimizer.step()
+        optimizer.zero_grad()
+
+        # ema
+        if args.ema:
+            ema.update(model)
+
+        # display
+        if iter_i % 10 == 0:
+            if args.tfboard:
+                # viz loss
+                tblogger.add_scalar('cls loss',  loss_dict_reduced['cls_loss'].item(),  iter_i + epoch * epoch_size)
+                tblogger.add_scalar('reg loss',  loss_dict_reduced['reg_loss'].item(),  iter_i + epoch * epoch_size)
+                tblogger.add_scalar('ctn loss',  loss_dict_reduced['ctn_loss'].item(),  iter_i + epoch * epoch_size)
             
-            # make labels
-            targets = [label.tolist() for label in targets]
-            # vis_data(images, targets, train_size)
-            # continue
-            targets = gt_creator(img_size=train_size,
-                                 num_classes=num_classes, 
-                                 strides=net.strides, 
-                                 scale_range=cfg['scale_range'],
-                                 label_lists=targets
-                                 )        
-            # to device
-            images = images.to(device)
-            targets = targets.to(device)
+            t1 = time.time()
+            print('[Epoch %d][Iter %d/%d][lr %.6f][Loss: cls %.2f || reg %.2f || ctn %.2f || size %d || time: %.2f]'
+                    % (epoch, 
+                        max_iters, 
+                        iter_i, 
+                        epoch_size, 
+                        tmp_lr,
+                        loss_dict_reduced['cls_loss'].item(), 
+                        loss_dict_reduced['reg_loss'].item(), 
+                        loss_dict_reduced['ctn_loss'].item(), 
+                        train_size, 
+                        t1-t0),
+                    flush=True)
 
-            # forward
-            cls_loss, reg_loss, ctn_loss, total_loss = model(images, targets=targets)
-
-            loss_dict = dict(
-                cls_loss=cls_loss,
-                reg_loss=reg_loss,
-                ctn_loss=ctn_loss,
-                total_loss=total_loss
-            )
-            loss_dict_reduced = distributed_utils.reduce_loss_dict(loss_dict)
-
-            # check NAN
-            if torch.isnan(total_loss):
-                continue
-
-            # backprop
-            total_loss.backward()        
-            optimizer.step()
-            optimizer.zero_grad()
-
-            # ema
-            if args.ema:
-                ema.update(model)
-
-            # display
-            if iter_i % 10 == 0:
-                if args.tfboard:
-                    # viz loss
-                    tblogger.add_scalar('cls loss',  loss_dict_reduced['cls_loss'].item(),  iter_i + epoch * epoch_size)
-                    tblogger.add_scalar('reg loss',  loss_dict_reduced['reg_loss'].item(),  iter_i + epoch * epoch_size)
-                    tblogger.add_scalar('ctn loss',  loss_dict_reduced['ctn_loss'].item(),  iter_i + epoch * epoch_size)
-                
-                t1 = time.time()
-                print('[Epoch %d][Iter %d/%d][lr %.6f][Loss: cls %.2f || reg %.2f || ctn %.2f || size %d || time: %.2f]'
-                        % (epoch, 
-                           max_iters, 
-                           iter_i, 
-                           epoch_size, 
-                           tmp_lr,
-                           loss_dict_reduced['cls_loss'].item(), 
-                           loss_dict_reduced['reg_loss'].item(), 
-                           loss_dict_reduced['ctn_loss'].item(), 
-                           train_size, 
-                           t1-t0),
-                        flush=True)
-
-                t0 = time.time()
-
-        # evaluation
-        if (epoch + 1) % args.eval_epoch == 0:
-            if args.ema:
-                model_eval = ema.ema
-            else:
-                model_eval = model.module if args.distributed else model
-
+            t0 = time.time()
     
     if args.tfboard:
         tblogger.close()
