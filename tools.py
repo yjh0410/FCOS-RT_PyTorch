@@ -27,9 +27,10 @@ class FocalWithLogitsLoss(nn.Module):
         if self.reduction == "mean":
             batch_size = logits.size(0)
             pos_inds = (targets == 1.0).float()
-            num_pos = pos_inds.sum([1, 2], keepdim=True).clamp(1)
-            print(num_pos.size())
-            print(loss.size())
+            # [B, H*W, C] -> [B,]
+            num_pos = pos_inds.sum([1, 2]).clamp(1)
+            loss = loss.sum([1, 2])
+    
             loss = (loss / num_pos).sum() / batch_size
 
         elif self.reduction == "sum":
@@ -105,7 +106,6 @@ def loss(pred_cls, pred_giou, pred_ctn, label, num_classes):
     gt_ctn = label[..., -1]
     gt_pos = (gt_ctn > 0.).float()
     num_pos = gt_pos.sum(-1, keepdim=True).clamp(1)
-    print(num_pos.size())
 
     batch_size = pred_cls.size(0)
     # cls loss
