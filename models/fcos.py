@@ -78,6 +78,17 @@ class FCOS(nn.Module):
         self.reg_det = nn.Conv2d(256, 4, kernel_size=1)
         self.ctn_det = nn.Conv2d(256, 1, kernel_size=1)
 
+        # init weight
+        self.init_weight()
+
+
+    def init_weight(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.normal_(m.weight, mean=0, std=0.01)
+                if hasattr(m, 'bias') and m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+
         # init weight of cls_pred
         init_prob = 0.01
         bias_value = -torch.log(torch.tensor((1. - init_prob) / init_prob))
