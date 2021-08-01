@@ -404,6 +404,25 @@ def train():
 
             t0 = time.time()
     
+    # evaluate
+    if args.ema:
+        model_eval = ema.ema
+    else:
+        model_eval = model.module if args.distributed else model
+
+    best_map = eval(model=model_eval,
+                    train_size=train_size,
+                    val_size=val_size,
+                    path_to_save=path_to_save,
+                    epoch=epoch+1,
+                    best_map=best_map,
+                    evaluator=evaluator,
+                    tblogger=tblogger,
+                    local_rank=local_rank,
+                    ddp=args.distributed,
+                    dataset=args.dataset,
+                    model_name=args.version)
+
     if args.tfboard:
         tblogger.close()
 
