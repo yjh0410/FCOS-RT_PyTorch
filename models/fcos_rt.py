@@ -40,12 +40,12 @@ class FCOS_RT(nn.Module):
         elif self.backbone == 'r50':
             print('use backbone: resnet-50', )
             self.backbone = resnet50(pretrained=trainable, freeze_bn=freeze_bn)
-            c3, c4, c5 = 128, 256, 512
+            c3, c4, c5 = 512, 1024, 2048
 
         elif self.backbone == 'r101':
             print('use backbone: resnet-101', )
             self.backbone = resnet101(pretrained=trainable, freeze_bn=freeze_bn)
-            c3, c4, c5 = 128, 256, 512
+            c3, c4, c5 = 512, 1024, 2048
 
         # latter layers
         self.latter_1 = nn.Conv2d(c3, 256, kernel_size=1)

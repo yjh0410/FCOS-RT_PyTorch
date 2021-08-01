@@ -335,7 +335,7 @@ def train():
         if iter_i % 10 == 0 and iter_i > 0 and args.multi_scale:
             # randomly choose a new size
             r = cfg['random_size_range']
-            train_size = random.randint(r[0], r[1]) * 128
+            train_size = random.randint(r[0], r[1]) * 32
             model.module.set_grid(train_size) if args.distributed else model.set_grid(train_size)
         if args.multi_scale:
             # interpolate
