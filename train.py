@@ -404,7 +404,7 @@ def train():
 
             t0 = time.time()
     
-    # evaluate
+    # final evaluate
     if args.ema:
         model_eval = ema.ema
     else:
