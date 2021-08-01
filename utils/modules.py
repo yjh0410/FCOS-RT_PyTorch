@@ -10,14 +10,21 @@ def is_parallel(model):
 
 
 class Conv(nn.Module):
-    def __init__(self, in_ch, out_ch, k=1, p=0, s=1, d=1, g=1, act=True, bias=False):
+    def __init__(self, in_ch, out_ch, k=1, p=0, s=1, d=1, g=1, act='relu', bias=False):
         super(Conv, self).__init__()
-        if act:
-            self.convs = nn.Sequential(
-                nn.Conv2d(in_ch, out_ch, k, stride=s, padding=p, dilation=d, groups=g, bias=bias),
-                nn.BatchNorm2d(out_ch),
-                nn.ReLU(inplace=True)
-            )
+        if act is not None:
+            if act == 'relu':
+                self.convs = nn.Sequential(
+                    nn.Conv2d(in_ch, out_ch, k, stride=s, padding=p, dilation=d, groups=g, bias=bias),
+                    nn.BatchNorm2d(out_ch),
+                    nn.ReLU(inplace=True)
+                )
+            elif act == 'leaky':
+                self.convs = nn.Sequential(
+                    nn.Conv2d(in_ch, out_ch, k, stride=s, padding=p, dilation=d, groups=g, bias=bias),
+                    nn.BatchNorm2d(out_ch),
+                    nn.LeakyReLU(0.1, inplace=True)
+                )
         else:
             self.convs = nn.Sequential(
                 nn.Conv2d(in_ch, out_ch, k, stride=s, padding=p, dilation=d, groups=g, bias=bias),
