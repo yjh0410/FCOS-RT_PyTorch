@@ -457,6 +457,8 @@ def eval(model,
     model.set_grid(train_size)
     model.train()
 
+    return best_map
+
 
 
 def set_lr(optimizer, lr):
