@@ -19,8 +19,6 @@ parser.add_argument('-size', '--input_size', default=768, type=int,
 parser.add_argument('--trained_model', type=str,
                     default='weights/', 
                     help='Trained state_dict file path to open')
-parser.add_argument('-size', '--input_size', default=768, type=int,
-                    help='input_size')
 parser.add_argument('-ct', '--conf_thresh', default=0.001, type=float,
                     help='conf thresh')
 parser.add_argument('-nt', '--nms_thresh', default=0.60, type=float,
