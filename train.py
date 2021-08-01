@@ -54,7 +54,7 @@ def parse_args():
     parser.add_argument('-v', '--version', default='fcos_rt',
                         help='fcos_rt')
     parser.add_argument('-bk', '--backbone', default='r18',
-                        help='r18, r50, r101')
+                        help='r18, r50, r101, dla34, d53')
 
     # dataset
     parser.add_argument('-d', '--dataset', default='coco',

@@ -1,5 +1,5 @@
-# FCOS
-Recently, I'm trying to reproduce FCOS again.
+# FCOS-RT
+Recently, I'm trying to reproduce FCOS-RT, a real-time version of FCOS
 
 ## Instillation
 - Pytorch >= 1.3.0

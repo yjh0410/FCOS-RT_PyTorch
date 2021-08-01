@@ -147,6 +147,8 @@ if __name__ == '__main__':
                  img_size=input_size, 
                  num_classes=num_classes, 
                  trainable=False, 
+                 conf_thresh=args.conf_thresh,
+                 nms_thresh=args.nms_thresh,
                  bk=backbone
                  )
     
