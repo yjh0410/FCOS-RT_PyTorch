@@ -265,7 +265,7 @@ def train():
     
     # basic
     batch_size = args.batch_size
-    max_iters = cfg['max_iters'] * args.schedule
+    max_iters = cfg['max_iters']
     lr_step = cfg['lr_step']
     epoch_size = len(dataset) // (batch_size * args.num_gpu)
     print('Max iter: ', max_iters)

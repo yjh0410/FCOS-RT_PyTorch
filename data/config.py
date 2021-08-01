@@ -4,7 +4,6 @@
 fcos_rt_train_cfg = {
     # network
     'freeze_bn': True,
-    'norm': 'bn',
     # for multi-scale trick
     'img_size': 640,
     'train_size': 640,
