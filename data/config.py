@@ -6,7 +6,7 @@ train_cfg = {
     'freeze_bn': True,
     # for multi-scale trick
     'img_size': 1024,
-    'train_size': 1024,
+    'train_size': 768,
     'val_size': 768,
     'random_size_range': [3, 8], #[384, 512, 640, 768, 896, 1024]
     # scale range
