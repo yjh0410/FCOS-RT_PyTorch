@@ -414,7 +414,7 @@ def train():
                     train_size=train_size,
                     val_size=val_size,
                     path_to_save=path_to_save,
-                    epoch=epoch+1,
+                    epoch=epoch,
                     best_map=best_map,
                     evaluator=evaluator,
                     tblogger=tblogger,
