@@ -19,7 +19,7 @@ parser.add_argument('-bk', '--backbone', default='r18',
                     help='r18, r50, r101')
 parser.add_argument('-d', '--dataset', default='voc',
                     help='voc, coco-val.')
-parser.add_argument('-size', '--input_size', default=640, type=int,
+parser.add_argument('-size', '--input_size', default=768, type=int,
                     help='input_size')
 parser.add_argument('--trained_model', default='weight/',
                     type=str, help='Trained state_dict file path to open')

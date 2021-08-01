@@ -439,7 +439,7 @@ def eval(model,
                 # save model
                 print('Saving state, epoch:', epoch + 1)
                 torch.save(model.state_dict(), os.path.join(path_to_save, 
-                            model_name + '_' + repr(epoch + 1) + '_' + str(round(best_map, 2)) + '.pth')
+                            model_name + '_' + repr(epoch) + '_' + str(round(best_map, 2)) + '.pth')
                             )  
             if tblogger is not None:
                 if dataset == 'voc':
