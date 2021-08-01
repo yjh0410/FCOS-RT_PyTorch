@@ -133,10 +133,10 @@ def train():
 
     # build augmentation
     if args.augment == 'weak':
-        print('use weak augmentaion for 1x schedule ...')
+        print('use weak augmentaion ...')
         augmentation = WeakAugmentation(train_size)
     elif args.augment == 'strong':
-        print('use strong augmentaion for more than 1x schedule ...')
+        print('use strong augmentaion ...')
         augmentation = StrongAugmentation(train_size)
     else:
         print('unknown augmentation ...')
@@ -266,7 +266,7 @@ def train():
     # basic
     batch_size = args.batch_size
     max_iters = cfg['max_iters'] * args.schedule
-    lr_step = [e * args.schedule for e in cfg['lr_step']]
+    lr_step = cfg['lr_step']
     epoch_size = len(dataset) // (batch_size * args.num_gpu)
     print('Max iter: ', max_iters)
     print('Lr step:', lr_step)
