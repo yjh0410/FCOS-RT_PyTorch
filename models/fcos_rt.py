@@ -10,7 +10,7 @@ import utils.box_ops as box_ops
 from utils.loss import loss
 
 
-class FCOS(nn.Module):
+class FCOS_RT(nn.Module):
     def __init__(self, 
                  device, 
                  img_size, 
@@ -20,7 +20,7 @@ class FCOS(nn.Module):
                  nms_thresh=0.5, 
                  bk='r18',
                  freeze_bn=False):
-        super(FCOS, self).__init__()
+        super(FCOS_RT, self).__init__()
         self.device = device
         self.img_size = img_size
         self.num_classes = num_classes
@@ -29,7 +29,7 @@ class FCOS(nn.Module):
         self.nms_thresh = nms_thresh
         self.backbone = bk
         self.freeze_bn = freeze_bn
-        self.strides = [8, 16, 32, 64, 128]
+        self.strides = [8, 16, 32]
         self.grid_cell = self.create_grid(img_size)
 
         if self.backbone == 'r18':
@@ -51,8 +51,6 @@ class FCOS(nn.Module):
         self.latter_1 = nn.Conv2d(c3, 256, kernel_size=1)
         self.latter_2 = nn.Conv2d(c4, 256, kernel_size=1)
         self.latter_3 = nn.Conv2d(c5, 256, kernel_size=1)
-        self.latter_4 = nn.Conv2d(256, 256, kernel_size=3, padding=1, stride=2)
-        self.latter_5 = nn.Conv2d(256, 256, kernel_size=3, padding=1, stride=2)
 
         # smooth layers
         self.smooth_1 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
@@ -83,7 +81,7 @@ class FCOS(nn.Module):
 
 
     def init_weight(self):
-        for m in [self.latter_1, self.latter_2, self.latter_3, self.latter_4, self.latter_5]:
+        for m in [self.latter_1, self.latter_2, self.latter_3]:
             if isinstance(m, nn.Conv2d):
                 nn.init.normal_(m.weight, mean=0, std=0.01)
                 if hasattr(m, 'bias') and m.bias is not None:
@@ -100,7 +98,6 @@ class FCOS(nn.Module):
         bias_value = -torch.log(torch.tensor((1. - init_prob) / init_prob))
         nn.init.constant_(self.cls_det.bias, bias_value)
         
-
 
     def create_grid(self, img_size):
         total_grid_xy = []
@@ -203,11 +200,8 @@ class FCOS(nn.Module):
         p4 = self.smooth_2(p4)
 
         p3 = self.smooth_1(self.latter_1(c3) + p4_up)
-        # p5 -> p6, p6 -> p7
-        p6 = self.latter_4(p5)
-        p7 = self.latter_5(p6)
 
-        features = [p3, p4, p5, p6, p7]
+        features = [p3, p4, p5]
         cls_dets = []
         reg_dets = []
         ctn_dets = []

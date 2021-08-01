@@ -12,14 +12,14 @@ from data import config
 
 
 
-parser = argparse.ArgumentParser(description='FCOS Detection')
-parser.add_argument('-v', '--version', default='fcos',
-                    help='fcos')
+parser = argparse.ArgumentParser(description='FCOS-RT Detection')
+parser.add_argument('-v', '--version', default='fcos_rt',
+                    help='fcos_rt')
 parser.add_argument('-bk', '--backbone', default='r18',
                     help='r18, r50, r101')
 parser.add_argument('-d', '--dataset', default='voc',
                     help='voc, coco-val.')
-parser.add_argument('-size', '--input_size', default=768, type=int,
+parser.add_argument('-size', '--input_size', default=640, type=int,
                     help='input_size')
 parser.add_argument('--trained_model', default='weight/',
                     type=str, help='Trained state_dict file path to open')
@@ -134,9 +134,8 @@ if __name__ == '__main__':
     print('Model: ', model_name)
 
     # load model and config file
-    if model_name == 'fcos':
-        from models.fcos import FCOS
-        cfg = config.train_cfg
+    if model_name == 'fcos_rt':
+        from models.fcos_rt import FCOS_RT
         backbone = args.backbone
 
     else:
@@ -144,12 +143,12 @@ if __name__ == '__main__':
         exit(0)
 
     # model
-    net = FCOS(device=device, 
-                img_size=input_size, 
-                num_classes=num_classes, 
-                trainable=False, 
-                bk=backbone
-                )
+    net = FCOS_RT(device=device, 
+                 img_size=input_size, 
+                 num_classes=num_classes, 
+                 trainable=False, 
+                 bk=backbone
+                 )
     
 
     # load weight

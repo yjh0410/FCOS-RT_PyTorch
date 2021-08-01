@@ -27,7 +27,7 @@ from utils.modules import ModelEMA
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='FCOS Detection')
+    parser = argparse.ArgumentParser(description='FCOS-RT Detection')
     # basic
     parser.add_argument('--cuda', action='store_true', default=False,
                         help='use cuda.')
@@ -53,8 +53,8 @@ def parse_args():
                         help='Gamma update for SGD')
 
     # model
-    parser.add_argument('-v', '--version', default='fcos',
-                        help='fcos')
+    parser.add_argument('-v', '--version', default='fcos_rt',
+                        help='fcos_rt')
     parser.add_argument('-bk', '--backbone', default='r18',
                         help='r18, r50, r101')
 
@@ -87,8 +87,8 @@ def train():
     print("Setting Arguments.. : ", args)
     print("----------------------------------------------------------")
     # config file
-    if args.version == 'fcos':
-        cfg = config.train_cfg
+    if args.version == 'fcos_rt':
+        cfg = config.fcos_rt_train_cfg
         
     # model name
     model_name = args.version
@@ -188,17 +188,17 @@ def train():
     print("----------------------------------------------------------")
 
     # buile model and config file
-    if model_name == 'fcos':
-        from models.fcos import FCOS
+    if model_name == 'fcos_rt':
+        from models.fcos_rt import FCOS_RT
         backbone = args.backbone
         # model
-        net = FCOS(device=device, 
-                    img_size=train_size, 
-                    num_classes=num_classes, 
-                    trainable=True, 
-                    bk=backbone,
-                    freeze_bn=cfg['freeze_bn']
-                    )
+        net = FCOS_RT(device=device, 
+                     img_size=train_size, 
+                     num_classes=num_classes, 
+                     trainable=True, 
+                     bk=backbone,
+                     freeze_bn=cfg['freeze_bn']
+                     )
     
     else:
         print('Unknown model name...')
