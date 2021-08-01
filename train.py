@@ -45,8 +45,6 @@ def parse_args():
                             default=500, help='wram-up epoch')
     parser.add_argument('--eval_epoch', type=int,
                             default=2, help='interval between evaluations')
-    parser.add_argument('--schedule', type=int,
-                            default=1, help='lr schedule.')
     parser.add_argument('--tfboard', action='store_true', default=False,
                         help='use tensorboard')
     parser.add_argument('--save_folder', default='weights/', type=str, 
@@ -63,6 +61,8 @@ def parse_args():
                         help='voc or coco')
 
     # train trick
+    parser.add_argument('-aug', '--augment', default='weak', type=str, 
+                        help='use weak or strong augmentation')      
     parser.add_argument('-ms', '--multi_scale', action='store_true', default=False,
                         help='use multi-scale trick')      
     parser.add_argument('--mosaic', action='store_true', default=False,
@@ -132,17 +132,15 @@ def train():
         print('use EMA trick ...')
 
     # build augmentation
-    if args.schedule < 1:
-        print('Unknow schedule !!')
-        exit(0)
-    elif args.schedule == 1:
-        # 1x schedule
+    if args.augment == 'weak':
         print('use weak augmentaion for 1x schedule ...')
         augmentation = WeakAugmentation(train_size)
-    else:
-        # train more than 1x
+    elif args.augment == 'strong':
         print('use strong augmentaion for more than 1x schedule ...')
         augmentation = StrongAugmentation(train_size)
+    else:
+        print('unknown augmentation ...')
+        exit(0)
 
     # dataset and evaluator
     if args.dataset == 'voc':
