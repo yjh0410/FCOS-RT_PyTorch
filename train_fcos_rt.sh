@@ -1,1 +1,1 @@
-python train.py --cuda -bk r50 --batch_size 16 -aug weak -ms
+python train.py --cuda -v fcos_rt -bk r50 --batch_size 16 -aug weak -ms
