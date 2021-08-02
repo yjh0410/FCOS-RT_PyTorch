@@ -326,6 +326,7 @@ def train():
                 dataloader.sampler.set_epoch(epoch)
             epoch += 1
             # rebuild batch iter
+            dataloader.sampler.set_epoch(epoch)
             batch_iter = iter(dataloader)
             images, targets = next(batch_iter)
 
