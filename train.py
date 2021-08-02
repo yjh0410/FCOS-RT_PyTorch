@@ -295,7 +295,7 @@ def train():
     
     best_map = 0.
     t0 = time.time()
-    epoch = 1
+    epoch = 0
     # start to train
     for iter_i in range(args.start_iter, max_iters):
         # load a batch
@@ -321,11 +321,8 @@ def train():
                             dataset=args.dataset,
                             model_name=args.version)
             
-            # set epoch if DDP
-            if args.distributed:
-                dataloader.sampler.set_epoch(epoch)
-            epoch += 1
             # rebuild batch iter
+            epoch += 1
             dataloader.sampler.set_epoch(epoch)
             batch_iter = iter(dataloader)
             images, targets = next(batch_iter)
@@ -397,9 +394,9 @@ def train():
         if iter_i % 10 == 0:
             if args.tfboard:
                 # viz loss
-                tblogger.add_scalar('cls loss',  loss_dict_reduced['cls_loss'].item(),  iter_i + epoch * epoch_size)
-                tblogger.add_scalar('reg loss',  loss_dict_reduced['reg_loss'].item(),  iter_i + epoch * epoch_size)
-                tblogger.add_scalar('ctn loss',  loss_dict_reduced['ctn_loss'].item(),  iter_i + epoch * epoch_size)
+                tblogger.add_scalar('cls loss',  loss_dict_reduced['cls_loss'].item(),  iter_i)
+                tblogger.add_scalar('reg loss',  loss_dict_reduced['reg_loss'].item(),  iter_i)
+                tblogger.add_scalar('ctn loss',  loss_dict_reduced['ctn_loss'].item(),  iter_i)
             
             t1 = time.time()
             print('[Epoch %d][Iter %d/%d][lr %.6f][Loss: cls %.2f || reg %.2f || ctn %.2f || size %d || time: %.2f]'
@@ -470,7 +467,7 @@ def eval(model,
                 # save model
                 print('Saving state, epoch:', epoch + 1)
                 torch.save(model.state_dict(), os.path.join(path_to_save, 
-                            model_name + '_' + repr(epoch) + '_' + str(round(best_map, 2)) + '.pth')
+                            model_name + '_' + repr(epoch + 1) + '_' + str(round(best_map, 2)) + '.pth')
                             )  
             if tblogger is not None:
                 if dataset == 'voc':
