@@ -52,7 +52,7 @@ def parse_args():
 
     # model
     parser.add_argument('-v', '--version', default='fcos_rt',
-                        help='fcos_rt')
+                        help='fcos_rt, fcos')
     parser.add_argument('-bk', '--backbone', default='r18',
                         help='r18, r50, r101, dla34, d53')
 
@@ -89,6 +89,8 @@ def train():
     # config file
     if args.version == 'fcos_rt':
         cfg = config.fcos_rt_train_cfg
+    elif args.version == 'fcos':
+        cfg = config.fcos_train_cfg
         
     # model name
     model_name = args.version
@@ -198,6 +200,17 @@ def train():
                      freeze_bn=cfg['freeze_bn']
                      )
     
+    elif model_name == 'fcos':
+        from models.fcos import FCOS
+        backbone = args.backbone
+        # model
+        net = FCOS(device=device, 
+                    img_size=train_size, 
+                    num_classes=num_classes, 
+                    trainable=True, 
+                    bk=backbone,
+                    freeze_bn=cfg['freeze_bn']
+                    )
     else:
         print('Unknown model name...')
         exit(0)

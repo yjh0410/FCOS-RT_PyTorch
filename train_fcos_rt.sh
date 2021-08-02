@@ -1,0 +1,1 @@
+python train.py --cuda -bk r50 --batch_size 16 -aug weak -ms
