@@ -13,8 +13,8 @@ fcos_rt_train_cfg = {
     'scale_range': [[0, 64], [64, 128], [128, 1e5]],
     # train
     'lr': 0.01,
-    'max_iters': 360000,
-    'lr_step': [300000, 340000]
+    'max_epoch': 48,
+    'lr_step': [24, 36]
 }
 
 # FCOS
@@ -30,6 +30,6 @@ fcos_train_cfg = {
     'scale_range': [[0, 64], [64, 128], [128, 256], [256, 512], [512, 1e5]],
     # train
     'lr': 0.01,
-    'max_iters': 90000,
-    'lr_step': [60000, 80000]
+    'max_epoch': 12,
+    'lr_step': [6, 10]
 }

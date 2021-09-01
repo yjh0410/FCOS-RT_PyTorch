@@ -49,6 +49,8 @@ def parse_args():
                         help='use tensorboard')
     parser.add_argument('--save_folder', default='weights/', type=str, 
                         help='Gamma update for SGD')
+    parser.add_argument('--vis', action='store_true', default=False,
+                        help='visualize target.')
 
     # model
     parser.add_argument('-v', '--version', default='fcos_rt',
@@ -278,10 +280,11 @@ def train():
     
     # basic
     batch_size = args.batch_size
-    max_iters = cfg['max_iters']
+    warmup = True
+    max_epoch = cfg['max_epoch']
     lr_step = cfg['lr_step']
     epoch_size = len(dataset) // (batch_size * args.num_gpu)
-    print('Max iter: ', max_iters)
+    print('Max epoch: ', max_epoch)
     print('Lr step:', lr_step)
 
     # build optimizer
@@ -296,23 +299,29 @@ def train():
     best_map = 0.
     t0 = time.time()
     epoch = 0
-    iter_i = 0
     # start to train
-    while iter_i < max_iters:
+    for epoch in range(args.start_epoch, max_epoch):
+        # set epoch if DDP
+        if args.distributed:
+            dataloader.sampler.set_epoch(epoch)
+
+        # use step lr
+        if epoch in lr_step:
+            tmp_lr = tmp_lr * 0.1
+            set_lr(optimizer, tmp_lr)
+
         # load a batch
-        for (images, targets) in dataloader:
-            # use step lr
-            if iter_i in lr_step:
-                tmp_lr = tmp_lr * 0.1
+        for iter_i, (images, targets) in enumerate(dataloader):
+            ni = iter_i + epoch * epoch_size
+            # warmup
+            if epoch < args.wp_epoch and warmup:
+                nw = args.wp_epoch * epoch_size
+                tmp_lr = base_lr * pow(ni / nw, 4)
                 set_lr(optimizer, tmp_lr)
 
-            # WarmUp strategy for learning rate
-            if iter_i < args.wp_iters:
-                tmp_lr = base_lr * pow(iter_i / args.wp_iters, 4)
-                set_lr(optimizer, tmp_lr)
-
-            elif iter_i == args.wp_iters:
+            elif epoch == args.wp_epoch and iter_i == 0 and warmup:
                 # warmup is over
+                warmup = False
                 tmp_lr = base_lr
                 set_lr(optimizer, tmp_lr)
 
@@ -326,10 +335,13 @@ def train():
                 # interpolate
                 images = torch.nn.functional.interpolate(images, size=train_size, mode='bilinear', align_corners=False)
             
-            # make labels
             targets = [label.tolist() for label in targets]
-            # vis_data(images, targets, train_size)
-            # continue
+            # visualize target
+            if args.vis:
+                vis_data(images, targets, train_size)
+                continue
+            
+            # make labels
             targets = gt_creator(img_size=train_size,
                                     num_classes=num_classes, 
                                     strides=net.strides, 
@@ -376,7 +388,7 @@ def train():
                 print('[Epoch %d][Iter %d/%d][lr %.6f][Loss: cls %.2f || reg %.2f || ctn %.2f || size %d || time: %.2f]'
                         % (epoch, 
                             iter_i, 
-                            max_iters, 
+                            epoch_size, 
                             tmp_lr,
                             loss_dict_reduced['cls_loss'].item(), 
                             loss_dict_reduced['reg_loss'].item(), 
