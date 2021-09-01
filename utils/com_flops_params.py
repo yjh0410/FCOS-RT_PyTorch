@@ -2,10 +2,10 @@ import torch
 from thop import profile
 
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def FLOPs_and_Params(model, size):
+    device = model.device
     x = torch.randn(1, 3, size, size).to(device)
     model.trainable = False
     model.eval()
