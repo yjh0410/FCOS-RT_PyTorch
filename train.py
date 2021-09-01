@@ -25,6 +25,7 @@ from utils.augmentations import Augmentation
 from utils.coco_evaluator import COCOAPIEvaluator
 from utils.voc_evaluator import VOCAPIEvaluator
 from utils.modules import ModelEMA
+from utils.com_flops_params import FLOPs_and_Params
 
 
 def parse_args():
@@ -213,6 +214,9 @@ def train():
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
     model = model.to(device)
+
+    # compute FLOPs and Params
+    FLOPs_and_Params(model=model, size=train_size)
 
 
     # distributed
