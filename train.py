@@ -5,6 +5,7 @@ import random
 import argparse
 import time
 import numpy as np
+import cv2
 
 import torch
 import torch.optim as optim
@@ -41,6 +42,8 @@ def parse_args():
                         help='Number of workers used in dataloading')
     parser.add_argument('--num_gpu', default=1, type=int, 
                         help='Number of GPUs.')
+    parser.add_argument('--start_epoch', type=int,
+                            default=0, help='the start epoch to train')
     parser.add_argument('--wp_iters', type=int,
                             default=500, help='wram-up epoch')
     parser.add_argument('--eval_epoch', type=int,
@@ -482,7 +485,7 @@ def eval(model,
                 except:
                     print('Your version of Torch is lower than 1.7.0 !')
                     torch.save(model.state_dict(), save_name)
-                    
+
             if tblogger is not None:
                 if dataset == 'voc':
                     tblogger.add_scalar('07test/mAP', evaluator.map, epoch)
