@@ -409,52 +409,7 @@ class PhotometricDistort(object):
         # return self.rand_light_noise(im, boxes, labels)
 
 
-class WeakAugmentation(object):
-    def __init__(self, size=640, mean=(0.406, 0.456, 0.485), std=(0.225, 0.224, 0.229)):
-        self.mean = mean
-        self.size = size
-        self.std = std
-        self.augment = Compose([
-            ConvertFromInts(),
-            ToAbsoluteCoords(),
-            RandomMirror(),
-            ToPercentCoords()
-        ])
-        self.resize = Resize()
-
-
-    def __call__(self, img, boxes, labels):
-        img, boxes, labels = self.augment(img, boxes, labels)
-        img, boxes, labels, scale, offset = self.resize(img, boxes, labels, self.size, self.mean, self.std)
-        
-        return img, boxes, labels, scale, offset
-
-
-class StrongAugmentation(object):
-    def __init__(self, size=640, mean=(0.406, 0.456, 0.485), std=(0.225, 0.224, 0.229)):
-        self.mean = mean
-        self.size = size
-        self.std = std
-        self.augment = Compose([
-            ConvertFromInts(),
-            ToAbsoluteCoords(),
-            PhotometricDistort(),
-            Expand(self.mean),
-            RandomSampleCrop(),
-            RandomMirror(),
-            ToPercentCoords()
-        ])
-        self.resize = Resize()
-
-
-    def __call__(self, img, boxes, labels):
-        img, boxes, labels = self.augment(img, boxes, labels)
-        img, boxes, labels, scale, offset = self.resize(img, boxes, labels, self.size, self.mean, self.std)
-        
-        return img, boxes, labels, scale, offset
-
-
-class ColorAugmentation(object):
+class Augmentation(object):
     def __init__(self, size=640, mean=(0.406, 0.456, 0.485), std=(0.225, 0.224, 0.229)):
         self.mean = mean
         self.size = size
@@ -464,11 +419,10 @@ class ColorAugmentation(object):
             ToAbsoluteCoords(),
             PhotometricDistort(),
             RandomMirror(),
-            # RandomInvert(),
-            # RandomRotate(),
             ToPercentCoords()
         ])
         self.resize = Resize()
+
 
     def __call__(self, img, boxes, labels):
         img, boxes, labels = self.augment(img, boxes, labels)

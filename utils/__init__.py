@@ -1,2 +1,2 @@
-from .augmentations import WeakAugmentation, StrongAugmentation, ColorAugmentation
+from .augmentations import Augmentation
 from .modules import *

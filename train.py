@@ -21,7 +21,7 @@ from data import BaseTransform, detection_collate
 from create_gt import gt_creator
 
 from utils import distributed_utils
-from utils.augmentations import WeakAugmentation, StrongAugmentation, ColorAugmentation
+from utils.augmentations import Augmentation
 from utils.coco_evaluator import COCOAPIEvaluator
 from utils.voc_evaluator import VOCAPIEvaluator
 from utils.modules import ModelEMA
@@ -44,8 +44,8 @@ def parse_args():
                         help='Number of GPUs.')
     parser.add_argument('--start_epoch', type=int,
                             default=0, help='the start epoch to train')
-    parser.add_argument('--wp_iters', type=int,
-                            default=500, help='wram-up epoch')
+    parser.add_argument('--wp_epoch', type=int,
+                            default=1, help='wram-up epoch')
     parser.add_argument('--eval_epoch', type=int,
                             default=2, help='interval between evaluations')
     parser.add_argument('--tfboard', action='store_true', default=False,
@@ -66,8 +66,6 @@ def parse_args():
                         help='voc or coco')
 
     # train trick
-    parser.add_argument('-aug', '--augment', default='weak', type=str, 
-                        help='use weak or strong augmentation')      
     parser.add_argument('-ms', '--multi_scale', action='store_true', default=False,
                         help='use multi-scale trick')      
     parser.add_argument('--mosaic', action='store_true', default=False,
@@ -138,25 +136,13 @@ def train():
     if args.ema:
         print('use EMA trick ...')
 
-    # build augmentation
-    if args.augment == 'weak':
-        print('use weak augmentaion ...')
-        augmentation = WeakAugmentation(train_size)
-    elif args.augment == 'strong':
-        print('use strong augmentaion ...')
-        augmentation = StrongAugmentation(train_size)
-    else:
-        print('unknown augmentation ...')
-        exit(0)
-
     # dataset and evaluator
     if args.dataset == 'voc':
         data_dir = VOC_ROOT
         num_classes = 20
         dataset = VOCDetection(root=data_dir, 
                                 img_size=train_size,
-                                transform=augmentation,
-                                base_transform=ColorAugmentation(train_size),
+                                transform=Augmentation(train_size),
                                 mosaic=args.mosaic
                                 )
 
@@ -173,8 +159,7 @@ def train():
         dataset = COCODataset(
                     data_dir=data_dir,
                     img_size=train_size,
-                    transform=augmentation,
-                    base_transform=ColorAugmentation(train_size),
+                    transform=Augmentation(train_size),
                     mosaic=args.mosaic)
 
         evaluator = COCOAPIEvaluator(
