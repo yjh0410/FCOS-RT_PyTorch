@@ -476,9 +476,13 @@ def eval(model,
                 best_map = cur_map
                 # save model
                 print('Saving state, epoch:', epoch + 1)
-                torch.save(model.state_dict(), os.path.join(path_to_save, 
-                            model_name + '_' + repr(epoch + 1) + '_' + str(round(best_map, 2)) + '.pth')
-                            )  
+                save_name = os.path.join(path_to_save, model_name + '_' + repr(epoch + 1) + '_' + str(round(best_map, 2)) + '.pth')
+                try:
+                    torch.save(model.state_dict(), save_name, _use_new_zipfile_serialization=False)
+                except:
+                    print('Your version of Torch is lower than 1.7.0 !')
+                    torch.save(model.state_dict(), save_name)
+                    
             if tblogger is not None:
                 if dataset == 'voc':
                     tblogger.add_scalar('07test/mAP', evaluator.map, epoch)
@@ -496,7 +500,6 @@ def eval(model,
     model.train()
 
     return best_map
-
 
 
 def set_lr(optimizer, lr):
