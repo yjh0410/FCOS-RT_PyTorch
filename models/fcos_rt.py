@@ -44,23 +44,12 @@ class FCOS_RT(nn.Module):
             c3, c4, c5 = 512, 1024, 2048
             act = 'relu'
 
-        elif self.backbone == 'r101':
-            print('use backbone: resnet-101 ...')
-            self.backbone = resnet101(pretrained=trainable, freeze_bn=freeze_bn)
-            c3, c4, c5 = 512, 1024, 2048
-            act = 'relu'
-        
         elif self.backbone == 'dla34':
             print('use backbone: DLA-34 ...')
             self.backbone = dla34(pretrained=trainable)
             c3, c4, c5 = 128, 256, 512
             act = 'relu'
 
-        elif self.backbone == 'd53':
-            print('use backbone: DarkNet-53 ...')
-            self.backbone = darknet53(pretrained=trainable, hr=trainable)
-            c3, c4, c5 = 256, 512, 1024
-            act = 'leaky'
 
         # latter layers
         self.latter_1 = nn.Conv2d(c3, 256, kernel_size=1)
