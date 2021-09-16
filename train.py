@@ -246,7 +246,6 @@ def train():
                         pin_memory=True
                         )
 
-    batch_iter = iter(dataloader)
 
     # keep training
     if args.resume is not None:
