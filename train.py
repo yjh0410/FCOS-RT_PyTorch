@@ -207,17 +207,17 @@ def train():
         exit(0)
 
     model = net
+    model = model.to(device).train()
 
     # SyncBatchNorm
-    if args.sybn and args.cuda and args.num_gpu > 1:
+    if args.distributed and args.sybn and args.cuda and args.num_gpu > 1:
         print('use SyncBatchNorm ...')
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
-    model = model.to(device)
 
-    # compute FLOPs and Params
-    FLOPs_and_Params(model=model, size=train_size)
-
+    if not args.distributed:
+        # compute FLOPs and Params
+        FLOPs_and_Params(model=model, size=train_size)
 
     # distributed
     if args.distributed and args.num_gpu > 1:
