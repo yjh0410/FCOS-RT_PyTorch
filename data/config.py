@@ -12,7 +12,7 @@ fcos_rt_train_cfg = {
     # scale range
     'scale_range': [[0, 64], [64, 128], [128, 1e5]],
     # train
-    'lr': 0.001,
+    'lr': 0.01,
     'max_epoch': 48,
     'lr_step': [24, 36]
 }
@@ -29,7 +29,7 @@ fcos_train_cfg = {
     # scale range
     'scale_range': [[0, 64], [64, 128], [128, 256], [256, 512], [512, 1e5]],
     # train
-    'lr': 0.001,
+    'lr': 0.01,
     'max_epoch': 12,
     'lr_step': [6, 10]
 }
