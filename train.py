@@ -136,7 +136,7 @@ def train():
                                 img_size=train_size,
                                 strides=[8, 16, 32],
                                 scale_range=cfg['scale_range'],
-                                train=False,
+                                train=True,
                                 transform=Augmentation(train_size),
                                 mosaic=args.mosaic
                                 )
@@ -155,7 +155,7 @@ def train():
                               img_size=train_size,
                               strides=[8, 16, 32],
                               scale_range=cfg['scale_range'],
-                              train=False,
+                              train=True,
                               transform=Augmentation(train_size),
                               mosaic=args.mosaic)
 
