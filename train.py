@@ -134,6 +134,9 @@ def train():
         num_classes = 20
         dataset = VOCDetection(root=data_dir, 
                                 img_size=train_size,
+                                strides=[8, 16, 32],
+                                scale_range=cfg['scale_range'],
+                                train=False,
                                 transform=Augmentation(train_size),
                                 mosaic=args.mosaic
                                 )
@@ -148,11 +151,13 @@ def train():
     elif args.dataset == 'coco':
         data_dir = coco_root
         num_classes = 80
-        dataset = COCODataset(
-                    data_dir=data_dir,
-                    img_size=train_size,
-                    transform=Augmentation(train_size),
-                    mosaic=args.mosaic)
+        dataset = COCODataset(data_dir=data_dir,
+                              img_size=train_size,
+                              strides=[8, 16, 32],
+                              scale_range=cfg['scale_range'],
+                              train=False,
+                              transform=Augmentation(train_size),
+                              mosaic=args.mosaic)
 
         evaluator = COCOAPIEvaluator(
                         data_dir=data_dir,

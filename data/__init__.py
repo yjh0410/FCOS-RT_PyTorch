@@ -24,7 +24,6 @@ def detection_collate(batch):
     for sample in batch:
         imgs.append(sample[0])
         targets.append(sample[1])
-        print(sample[1].size())
     return torch.stack(imgs, 0), torch.stack(targets, 0)
 
 
