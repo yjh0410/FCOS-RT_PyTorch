@@ -52,7 +52,7 @@ def gt_creator(img_size, num_classes, strides, scale_range, label_lists=[]):
                                                                                     min(t, b) / max(t, b))
     
     gt_tensor = [gt.reshape(-1, num_classes + 4 + 1) for gt in gt_tensor]
-    gt_tensor = np.concatenate(gt_tensor, axis=1)
+    gt_tensor = np.concatenate(gt_tensor, axis=0)
 
     return torch.from_numpy(gt_tensor).float()
 
