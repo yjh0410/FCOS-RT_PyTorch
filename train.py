@@ -67,8 +67,6 @@ def parse_args():
                         help='voc or coco')
 
     # train trick
-    parser.add_argument('-ms', '--multi_scale', action='store_true', default=False,
-                        help='use multi-scale trick')      
     parser.add_argument('--mosaic', action='store_true', default=False,
                         help='use mosaic augmentation')
     parser.add_argument('--ema', action='store_true', default=False,
@@ -125,13 +123,8 @@ def train():
         print('use Mosaic Augmentation ...')
 
     # multi-scale
-    if args.multi_scale:
-        print('use the multi-scale trick ...')
-        train_size = cfg['img_size']
-        val_size = cfg['val_size']
-    else:
-        train_size = cfg['train_size']
-        val_size = cfg['val_size']
+    train_size = cfg['train_size']
+    val_size = cfg['val_size']
 
     # EMA trick
     if args.ema:
@@ -315,16 +308,6 @@ def train():
                 warmup = False
                 tmp_lr = base_lr
                 set_lr(optimizer, tmp_lr)
-
-            # multi-scale trick
-            if iter_i % 10 == 0 and iter_i > 0 and args.multi_scale:
-                # randomly choose a new size
-                r = cfg['random_size_range']
-                train_size = random.randint(r[0], r[1]) * 32
-                model.module.set_grid(train_size) if args.distributed else model.set_grid(train_size)
-            if args.multi_scale:
-                # interpolate
-                images = torch.nn.functional.interpolate(images, size=train_size, mode='bilinear', align_corners=False)
             
             targets = [label.tolist() for label in targets]
             # visualize target
@@ -332,13 +315,6 @@ def train():
                 vis_data(images, targets, train_size)
                 continue
             
-            # make labels
-            targets = gt_creator(img_size=train_size,
-                                    num_classes=num_classes, 
-                                    strides=net.strides, 
-                                    scale_range=cfg['scale_range'],
-                                    label_lists=targets
-                                    )        
             # to device
             images = images.to(device)
             targets = targets.to(device)
@@ -498,7 +474,7 @@ def set_lr(optimizer, lr):
         param_group['lr'] = lr
 
 
-def vis_data(images, targets, input_size):
+def vis_data(images, targets, input_size, num_classes):
     # vis data
     mean=(0.406, 0.456, 0.485)
     std=(0.225, 0.224, 0.229)
@@ -510,14 +486,17 @@ def vis_data(images, targets, input_size):
     cv2.imwrite('1.jpg', img)
 
     img_ = cv2.imread('1.jpg')
-    for box in targets[0]:
-        xmin, ymin, xmax, ymax = box[:-1]
-        # print(xmin, ymin, xmax, ymax)
-        xmin *= input_size
-        ymin *= input_size
-        xmax *= input_size
-        ymax *= input_size
-        cv2.rectangle(img_, (int(xmin), int(ymin)), (int(xmax), int(ymax)), (0, 0, 255), 2)
+    gt = targets[0] # [N, C]
+    print(gt.shape)
+    for i in range(gt.shape[0]):
+        if gt[i, :num_classes].sum() > 0.:
+            xmin, ymin, xmax, ymax = gt[i, -5:-1]
+            # print(xmin, ymin, xmax, ymax)
+            xmin *= input_size
+            ymin *= input_size
+            xmax *= input_size
+            ymax *= input_size
+            cv2.rectangle(img_, (int(xmin), int(ymin)), (int(xmax), int(ymax)), (0, 0, 255), 2)
 
     cv2.imshow('img', img_)
     cv2.waitKey(0)

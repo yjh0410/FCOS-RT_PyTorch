@@ -18,6 +18,12 @@ if sys.version_info[0] == 2:
 else:
     import xml.etree.ElementTree as ET
 
+try:
+    from data import create_gt
+except:
+    pass
+
+
 VOC_CLASSES = (  # always index 0
     'aeroplane', 'bicycle', 'bird', 'boat',
     'bottle', 'bus', 'car', 'cat', 'chair',
@@ -96,7 +102,10 @@ class VOCDetection(data.Dataset):
 
     def __init__(self, 
                  root,
-                 img_size=None,
+                 img_size=640,
+                 strides=[8,16,32],
+                 scale_range=[[0, 64], [64, 128], [128, 1e5]],
+                 train=False,
                  image_sets=[('2007', 'trainval'), ('2012', 'trainval')],
                  transform=None, 
                  target_transform=VOCAnnotationTransform(),
@@ -106,6 +115,9 @@ class VOCDetection(data.Dataset):
                  ):
         self.root = root
         self.img_size = img_size
+        self.strides = strides
+        self.scale_range = scale_range
+        self.train = train
         self.image_set = image_sets
         self.target_transform = target_transform
         self.name = dataset_name
@@ -121,10 +133,19 @@ class VOCDetection(data.Dataset):
         self.mosaic = mosaic
         self.mixup = mixup
 
+
     def __getitem__(self, index):
         im, gt, h, w, scale, offset = self.pull_item(index)
-
-        return im, gt
+        if self.train:
+            # make labels
+            gt_tensor = create_gt.gt_creator(img_size=self.img_size,
+                                            num_classes=20, 
+                                            strides=self.strides, 
+                                            scale_range=self.scale_range,
+                                            label_lists=gt)        
+            return im, gt_tensor
+        else:
+            return im, gt
 
 
     def __len__(self):

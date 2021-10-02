@@ -7,6 +7,11 @@ from torch.utils.data import Dataset
 import cv2
 from pycocotools.coco import COCO
 
+try:
+    from data import create_gt
+except:
+    pass
+
 
 coco_class_labels = ('background',
                         'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck',
@@ -38,10 +43,12 @@ class COCODataset(Dataset):
     def __init__(self, 
                  data_dir='COCO', 
                  img_size=640,
+                 strides=[8,16,32],
+                 scale_range=[[0, 64], [64, 128], [128, 1e5]],
+                 train=False,
                  transform=None, 
                  json_file='instances_train2017.json',
                  name='train2017', 
-                 min_size=1, 
                  debug=False,
                  mosaic=False,
                  mixup=False):
@@ -55,6 +62,10 @@ class COCODataset(Dataset):
             min_size (int): bounding boxes smaller than this are ignored
             debug (bool): if True, only one data id is selected from the dataset
         """
+        self.img_size = img_size
+        self.strides = strides
+        self.scale_range = scale_range
+        self.train = train
         self.data_dir = data_dir
         self.json_file = json_file
         self.coco = COCO(self.data_dir+'annotations/'+self.json_file)
@@ -64,9 +75,6 @@ class COCODataset(Dataset):
             print("debug mode...", self.ids)
         self.class_ids = sorted(self.coco.getCatIds())
         self.name = name
-        self.max_labels = 50
-        self.img_size = img_size
-        self.min_size = min_size
         # augmentation
         self.transform = transform
         self.mosaic = mosaic
@@ -79,8 +87,16 @@ class COCODataset(Dataset):
 
     def __getitem__(self, index):
         im, gt, h, w, scale, offset = self.pull_item(index)
-
-        return im, gt
+        if self.train:
+            # make labels
+            gt_tensor = create_gt.gt_creator(img_size=self.img_size,
+                                            num_classes=20, 
+                                            strides=self.strides, 
+                                            scale_range=self.scale_range,
+                                            label_lists=gt)        
+            return im, gt_tensor
+        else:
+            return im, gt
 
 
     def pull_image(self, index):

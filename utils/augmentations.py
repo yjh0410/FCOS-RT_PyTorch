@@ -412,12 +412,14 @@ class PhotometricDistort(object):
 class Augmentation(object):
     def __init__(self, size=640, mean=(0.406, 0.456, 0.485), std=(0.225, 0.224, 0.229)):
         self.mean = mean
+        self.mean_255 = (mean[0]*255, mean[1]*255, mean[2]*255)
         self.size = size
         self.std = std
         self.augment = Compose([
             ConvertFromInts(),
             ToAbsoluteCoords(),
-            PhotometricDistort(),
+            Expand(self.mean_255),
+            # PhotometricDistort(),
             RandomMirror(),
             ToPercentCoords()
         ])
