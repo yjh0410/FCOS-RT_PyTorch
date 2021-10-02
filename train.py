@@ -33,6 +33,16 @@ def parse_args():
                         help='use cuda.')
     parser.add_argument('--batch_size', default=16, type=int, 
                         help='Batch size for training')
+    parser.add_argument('--img_size', default=640, type=int, 
+                        help='Batch size for training')
+    parser.add_argument('--max_epoch', default=12, type=int, 
+                        help='Max epoch for training')
+    parser.add_argument('--lr_epoch', default=[8, 10], type=int, 
+                        help='Max epoch for training')
+    parser.add_argument('--lr', default=0.01, type=float, 
+                        help='learning rate')
+    parser.add_argument('--schedule', default=1, type=int, 
+                        help='Schedule for training: 1x, 2x, 3x, 4x.')
     parser.add_argument('--start_iter', type=int, default=0,
                         help='start iteration to train')
     parser.add_argument('-r', '--resume', default=None, type=str, 
@@ -43,8 +53,6 @@ def parse_args():
                         help='Number of GPUs.')
     parser.add_argument('--start_epoch', type=int,
                             default=0, help='the start epoch to train')
-    parser.add_argument('--wp_epoch', type=int,
-                            default=1, help='wram-up epoch')
     parser.add_argument('--eval_epoch', type=int,
                             default=2, help='interval between evaluations')
     parser.add_argument('--tfboard', action='store_true', default=False,
@@ -65,10 +73,16 @@ def parse_args():
                         help='voc or coco')
 
     # train trick
+    parser.add_argument('--freeze_bn', action='store_true', default=False,
+                        help='freeze bn of backbone')
     parser.add_argument('--mosaic', action='store_true', default=False,
                         help='use mosaic augmentation')
     parser.add_argument('--ema', action='store_true', default=False,
                         help='use ema training trick')
+    parser.add_argument('--no_warmup', action='store_true', default=False,
+                        help='do not use warmup')
+    parser.add_argument('--wp_epoch', type=int,
+                            default=1, help='wram-up epoch')
 
     # train DDP
     parser.add_argument('-dist', '--distributed', action='store_true', default=False,
@@ -86,16 +100,18 @@ def train():
     args = parse_args()
     print("Setting Arguments.. : ", args)
     print("----------------------------------------------------------")
-    # config file
-    if args.version == 'fcos_rt':
-        cfg = config.fcos_rt_train_cfg
-    elif args.version == 'fcos':
-        cfg = config.fcos_train_cfg
-        
     # model name
     model_name = args.version
     print('Model: ', model_name)
 
+    # config
+    if args.version == 'fcos_rt':
+        strides = [8, 16, 32]
+        scale_range = [[0, 64], [64, 128], [128, 1e5]]
+    elif args.version == 'fcos':
+        strides = [8, 16, 32, 64, 128]
+        scale_range = [[0, 64], [64, 128], [128, 256], [256, 512], [512, 1e5]]
+        
     # set distributed
     local_rank = 0
     if args.distributed:
@@ -120,9 +136,9 @@ def train():
     if args.mosaic:
         print('use Mosaic Augmentation ...')
 
-    # multi-scale
-    train_size = cfg['train_size']
-    val_size = cfg['val_size']
+    # input size
+    train_size = args.img_size
+    val_size = args.img_size
 
     # EMA trick
     if args.ema:
@@ -134,8 +150,8 @@ def train():
         num_classes = 20
         dataset = VOCDetection(root=data_dir, 
                                 img_size=train_size,
-                                strides=[8, 16, 32],
-                                scale_range=cfg['scale_range'],
+                                strides=strides,
+                                scale_range=scale_range,
                                 train=True,
                                 transform=Augmentation(train_size),
                                 mosaic=args.mosaic
@@ -153,8 +169,8 @@ def train():
         num_classes = 80
         dataset = COCODataset(data_dir=data_dir,
                               img_size=train_size,
-                              strides=[8, 16, 32],
-                              scale_range=cfg['scale_range'],
+                              strides=strides,
+                              scale_range=scale_range,
                               train=True,
                               transform=Augmentation(train_size),
                               mosaic=args.mosaic)
@@ -184,7 +200,7 @@ def train():
                      num_classes=num_classes, 
                      trainable=True, 
                      bk=backbone,
-                     freeze_bn=cfg['freeze_bn']
+                     freeze_bn=args.freeze_bn
                      )
     
     elif model_name == 'fcos':
@@ -196,7 +212,7 @@ def train():
                     num_classes=num_classes, 
                     trainable=True, 
                     bk=backbone,
-                    freeze_bn=cfg['freeze_bn']
+                    freeze_bn=args.freeze_bn
                     )
     else:
         print('Unknown model name...')
@@ -266,15 +282,16 @@ def train():
     
     # basic
     batch_size = args.batch_size
-    warmup = True
-    max_epoch = cfg['max_epoch']
-    lr_step = cfg['lr_step']
+    warmup = not args.no_warmup
+    max_epoch = args.max_epoch * args.schedule
+    lr_epoch = [e * args.schedule for e in args.lr_epoch] 
     epoch_size = len(dataset) // (batch_size * args.num_gpu)
+    print('Schedule: %dx' % args.schedule)
     print('Max epoch: ', max_epoch)
-    print('Lr step:', lr_step)
+    print('Lr step:', lr_epoch)
 
     # build optimizer
-    base_lr = cfg['lr']
+    base_lr = args.lr
     tmp_lr = base_lr
     optimizer = optim.SGD(model.parameters(), 
                           lr=tmp_lr, 
@@ -292,7 +309,7 @@ def train():
             dataloader.sampler.set_epoch(epoch)
 
         # use step lr
-        if epoch in lr_step:
+        if epoch in lr_epoch:
             tmp_lr = tmp_lr * 0.1
             set_lr(optimizer, tmp_lr)
 
