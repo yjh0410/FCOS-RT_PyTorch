@@ -90,7 +90,7 @@ class COCODataset(Dataset):
         if self.train:
             # make labels
             gt_tensor = create_gt.gt_creator(img_size=self.img_size,
-                                            num_classes=20, 
+                                            num_classes=80, 
                                             strides=self.strides, 
                                             scale_range=self.scale_range,
                                             label_lists=gt)        
