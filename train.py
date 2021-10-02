@@ -210,7 +210,6 @@ def train():
         print('use SyncBatchNorm ...')
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
-
     if not args.distributed:
         # compute FLOPs and Params
         FLOPs_and_Params(model=model, size=train_size)
@@ -292,6 +291,26 @@ def train():
         if args.distributed:
             dataloader.sampler.set_epoch(epoch)
 
+        # evaluate
+        if (epoch) % args.eval_epoch == 0:
+            if args.ema:
+                model_eval = ema.ema
+            else:
+                model_eval = model.module if args.distributed else model
+
+            best_map = eval(model=model_eval,
+                            train_size=train_size,
+                            val_size=val_size,
+                            path_to_save=path_to_save,
+                            epoch=epoch,
+                            best_map=best_map,
+                            evaluator=evaluator,
+                            tblogger=tblogger,
+                            local_rank=local_rank,
+                            ddp=args.distributed,
+                            dataset=args.dataset,
+                            model_name=args.version)
+
         # use step lr
         if epoch in lr_step:
             tmp_lr = tmp_lr * 0.1
@@ -371,27 +390,25 @@ def train():
             iter_i += 1
     
         # evaluate
-        if args.ema:
-            model_eval = ema.ema
-        else:
-            model_eval = model.module if args.distributed else model
+        if (epoch + 1) % args.eval_epoch == 0:
+            if args.ema:
+                model_eval = ema.ema
+            else:
+                model_eval = model.module if args.distributed else model
 
-        best_map = eval(model=model_eval,
-                        train_size=train_size,
-                        val_size=val_size,
-                        path_to_save=path_to_save,
-                        epoch=epoch,
-                        best_map=best_map,
-                        evaluator=evaluator,
-                        tblogger=tblogger,
-                        local_rank=local_rank,
-                        ddp=args.distributed,
-                        dataset=args.dataset,
-                        model_name=args.version)
-        
-        # rebuild batch iter
-        epoch += 1
-
+            best_map = eval(model=model_eval,
+                            train_size=train_size,
+                            val_size=val_size,
+                            path_to_save=path_to_save,
+                            epoch=epoch,
+                            best_map=best_map,
+                            evaluator=evaluator,
+                            tblogger=tblogger,
+                            local_rank=local_rank,
+                            ddp=args.distributed,
+                            dataset=args.dataset,
+                            model_name=args.version)
+            
     # final evaluate
     if args.ema:
         model_eval = ema.ema
