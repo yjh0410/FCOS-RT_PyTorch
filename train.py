@@ -18,8 +18,6 @@ from data import coco_root, COCODataset
 from data import config
 from data import BaseTransform, detection_collate
 
-from create_gt import gt_creator
-
 from utils import distributed_utils
 from utils.augmentations import Augmentation
 from utils.coco_evaluator import COCOAPIEvaluator
