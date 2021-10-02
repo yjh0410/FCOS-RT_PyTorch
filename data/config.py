@@ -3,7 +3,7 @@
 # FCOS_RT
 fcos_rt_train_cfg = {
     # network
-    'freeze_bn': False,
+    'freeze_bn': True,
     # input size
     'train_size': 640,
     'val_size': 640,
@@ -19,7 +19,7 @@ fcos_rt_train_cfg = {
 # FCOS
 fcos_train_cfg = {
     # network
-    'freeze_bn': False,
+    'freeze_bn': True,
     # input size
     'train_size': 896,
     'val_size': 896,

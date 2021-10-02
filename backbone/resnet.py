@@ -149,6 +149,15 @@ class ResNet(nn.Module):
             if isinstance(m, nn.BatchNorm2d):
                 m.eval()
 
+    def freeze_stage(self):
+        # freeze stage = 1
+        for p in self.conv1.parameters():
+            p.requires_grad = False
+        for p in self.bn1.parameters():
+            p.requires_grad = False
+        for p in self.layer1.parameters():
+            p.requires_grad = False
+
     def forward(self, x):
         c1 = self.conv1(x)
         c1 = self.bn1(c1)
@@ -176,6 +185,8 @@ def resnet18(pretrained=False, freeze_bn=False, **kwargs):
         if freeze_bn:
             print('freeze bn ...')
             model.freeze_bn()
+            print('freeze stage 1')
+            model.freeze_stage()
 
     return model
 
@@ -192,6 +203,8 @@ def resnet34(pretrained=False, freeze_bn=False, **kwargs):
         if freeze_bn:
             print('freeze bn ...')
             model.freeze_bn()
+            print('freeze stage 1')
+            model.freeze_stage()
 
     return model
 
@@ -208,6 +221,8 @@ def resnet50(pretrained=False, freeze_bn=False, **kwargs):
         if freeze_bn:
             print('freeze bn ...')
             model.freeze_bn()
+            print('freeze stage 1')
+            model.freeze_stage()
 
     return model
 
@@ -224,6 +239,8 @@ def resnet101(pretrained=False, freeze_bn=False, **kwargs):
         if freeze_bn:
             print('freeze bn ...')
             model.freeze_bn()
+            print('freeze stage 1')
+            model.freeze_stage()
 
     return model
 
