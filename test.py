@@ -27,7 +27,7 @@ parser.add_argument('--conf_thresh', default=0.1, type=float,
                     help='Confidence threshold')
 parser.add_argument('--nms_thresh', default=0.50, type=float,
                     help='NMS threshold')
-parser.add_argument('--visual_threshold', default=0.3, type=float,
+parser.add_argument('-vs', '--visual_threshold', default=0.3, type=float,
                     help='Final confidence threshold')
 parser.add_argument('--cuda', action='store_true', default=False, 
                     help='use cuda.')
