@@ -312,7 +312,6 @@ def train():
                 tmp_lr = base_lr
                 set_lr(optimizer, tmp_lr)
             
-            targets = [label.tolist() for label in targets]
             # visualize target
             if args.vis:
                 vis_data(images, targets, train_size)
