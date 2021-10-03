@@ -241,7 +241,7 @@ def train():
         # compute FLOPs and Params
         FLOPs_and_Params(model=model, size=train_size)
 
-    # distributed
+    # dataloader
     if args.distributed and args.num_gpu > 1:
         print('using DDP ...')
         model = DDP(model, device_ids=[local_rank], output_device=local_rank)
