@@ -409,7 +409,29 @@ class PhotometricDistort(object):
         # return self.rand_light_noise(im, boxes, labels)
 
 
-class Augmentation(object):
+class WeakAugmentation(object):
+    def __init__(self, size=640, mean=(0.406, 0.456, 0.485), std=(0.225, 0.224, 0.229)):
+        self.mean = mean
+        self.mean_255 = (mean[0]*255, mean[1]*255, mean[2]*255)
+        self.size = size
+        self.std = std
+        self.augment = Compose([
+            ConvertFromInts(),
+            ToAbsoluteCoords(),
+            RandomMirror(),
+            ToPercentCoords()
+        ])
+        self.resize = Resize()
+
+
+    def __call__(self, img, boxes, labels):
+        img, boxes, labels = self.augment(img, boxes, labels)
+        img, boxes, labels, scale, offset = self.resize(img, boxes, labels, self.size, self.mean, self.std)
+        
+        return img, boxes, labels, scale, offset
+
+
+class StrongAugmentation(object):
     def __init__(self, size=640, mean=(0.406, 0.456, 0.485), std=(0.225, 0.224, 0.229)):
         self.mean = mean
         self.mean_255 = (mean[0]*255, mean[1]*255, mean[2]*255)
@@ -419,7 +441,6 @@ class Augmentation(object):
             ConvertFromInts(),
             ToAbsoluteCoords(),
             Expand(self.mean_255),
-            # PhotometricDistort(),
             RandomMirror(),
             ToPercentCoords()
         ])

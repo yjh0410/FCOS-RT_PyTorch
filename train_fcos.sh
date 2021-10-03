@@ -7,4 +7,5 @@ python train.py \
         --batch_size 16 \
         --schedule 1 \
         --freeze_bn \
-        --no_warmup
+        --no_warmup \
+        --aug weak

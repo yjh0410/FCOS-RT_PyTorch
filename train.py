@@ -19,7 +19,8 @@ from data import config
 from data import BaseTransform, detection_collate
 
 from utils import distributed_utils
-from utils.augmentations import Augmentation
+from utils import augmentations
+from utils.augmentations import WeakAugmentation, StrongAugmentation
 from utils.coco_evaluator import COCOAPIEvaluator
 from utils.voc_evaluator import VOCAPIEvaluator
 from utils.modules import ModelEMA
@@ -83,6 +84,8 @@ def parse_args():
                         help='do not use warmup')
     parser.add_argument('--wp_epoch', type=int,
                             default=1, help='wram-up epoch')
+    parser.add_argument('--aug', default='weak', type=str,
+                        help='weak, strong')
 
     # train DDP
     parser.add_argument('-dist', '--distributed', action='store_true', default=False,
@@ -144,6 +147,12 @@ def train():
     if args.ema:
         print('use EMA trick ...')
 
+    # augmentation
+    if args.aug == 'weak':
+        augment = WeakAugmentation(train_size)
+    elif args.aug == 'strong':
+        augment = StrongAugmentation(train_size)
+
     # dataset and evaluator
     if args.dataset == 'voc':
         data_dir = VOC_ROOT
@@ -153,7 +162,7 @@ def train():
                                 strides=strides,
                                 scale_range=scale_range,
                                 train=True,
-                                transform=Augmentation(train_size),
+                                transform=augment,
                                 mosaic=args.mosaic
                                 )
 
@@ -172,7 +181,7 @@ def train():
                               strides=strides,
                               scale_range=scale_range,
                               train=True,
-                              transform=Augmentation(train_size),
+                              transform=augment,
                               mosaic=args.mosaic)
 
         evaluator = COCOAPIEvaluator(

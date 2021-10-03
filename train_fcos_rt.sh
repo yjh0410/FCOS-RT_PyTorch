@@ -6,4 +6,5 @@ python train.py \
         --lr 0.01 \
         --batch_size 16 \
         --schedule 4 \
-        --freeze_bn
+        --freeze_bn \
+        --aug strong
