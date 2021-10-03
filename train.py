@@ -388,43 +388,72 @@ def train():
             iter_i += 1
     
         # evaluate
-        if (epoch + 1) % args.eval_epoch == 0:
+        if (epoch + 1) % args.eval_epoch == 0 or epoch + 1 == max_epoch:
             if args.ema:
                 model_eval = ema.ema
             else:
                 model_eval = model.module if args.distributed else model
 
-            best_map = eval(model=model_eval,
-                            train_size=train_size,
-                            val_size=val_size,
-                            path_to_save=path_to_save,
-                            epoch=epoch,
-                            best_map=best_map,
-                            evaluator=evaluator,
-                            tblogger=tblogger,
-                            local_rank=local_rank,
-                            ddp=args.distributed,
-                            dataset=args.dataset,
-                            model_name=args.version)
-            
-    # final evaluate
-    if args.ema:
-        model_eval = ema.ema
-    else:
-        model_eval = model.module if args.distributed else model
+            # check evaluator
+            if evaluator is None:
+                print('No evaluator ... save model and go on training.')
+                print('Saving state, epoch:', epoch + 1)
+                if local_rank == 0:
+                    try:
+                        torch.save(model_eval.state_dict(), os.path.join(path_to_save, 
+                                    args.version + '_' + args.backbone + '_' + repr(epoch + 1) + '.pth'),
+                                    _use_new_zipfile_serialization=False
+                                    )  
+                    except:
+                        print('The version of Torch is lower than 1.7.0.')
+                        torch.save(model_eval.state_dict(), os.path.join(path_to_save, 
+                                    args.version + '_' + args.backbone + '_' + repr(epoch + 1) + '.pth')
+                                    )  
+            else:
+                print('eval ...')
 
-    best_map = eval(model=model_eval,
-                    train_size=train_size,
-                    val_size=val_size,
-                    path_to_save=path_to_save,
-                    epoch=epoch,
-                    best_map=best_map,
-                    evaluator=evaluator,
-                    tblogger=tblogger,
-                    local_rank=local_rank,
-                    ddp=args.distributed,
-                    dataset=args.dataset,
-                    model_name=args.version)
+                # set eval mode
+                model_eval.trainable = False
+                model_eval.set_grid(val_size)
+                model_eval.eval()
+
+                # we only do evaluation on local_rank-0.
+                if local_rank == 0:
+                    # evaluate
+                    evaluator.evaluate(model_eval)
+
+                    cur_map = evaluator.map if args.dataset == 'voc' else evaluator.ap50_95
+                    if cur_map > best_map:
+                        # update best-map
+                        best_map = cur_map
+                        # save model
+                        print('Saving state, epoch:', epoch + 1)
+                        try:
+                            torch.save(model_eval.state_dict(), os.path.join(path_to_save, 
+                                        args.version + '_' + args.backbone + '_' + repr(epoch + 1) + '_' + str(round(best_map, 2)) + '.pth'),
+                                        _use_new_zipfile_serialization=False
+                                        )  
+                        except:
+                            print('The version of Torch is lower than 1.7.0.')
+                            torch.save(model_eval.state_dict(), os.path.join(path_to_save, 
+                                        args.version + '_' + args.backbone + '_' + repr(epoch + 1) + '_' + str(round(best_map, 2)) + '.pth')
+                                        )  
+
+                    if args.tfboard:
+                        if args.dataset == 'voc':
+                            tblogger.add_scalar('07test/mAP', evaluator.map, epoch)
+                        elif args.dataset == 'coco':
+                            tblogger.add_scalar('val/AP50_95', evaluator.ap50_95, epoch)
+                            tblogger.add_scalar('val/AP50', evaluator.ap50, epoch)
+
+                # wait for all processes to synchronize
+                if args.distributed:
+                    dist.barrier()
+
+                # set train mode.
+                model_eval.trainable = True
+                model_eval.set_grid(train_size)
+                model_eval.train()
 
     if args.tfboard:
         tblogger.close()
