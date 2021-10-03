@@ -149,8 +149,10 @@ def train():
 
     # augmentation
     if args.aug == 'weak':
+        print('use Weak Augment ...')
         augment = WeakAugmentation(train_size)
     elif args.aug == 'strong':
+        print('use Strong Augment ...')
         augment = StrongAugmentation(train_size)
 
     # dataset and evaluator
