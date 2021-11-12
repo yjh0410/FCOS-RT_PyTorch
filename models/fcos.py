@@ -4,10 +4,10 @@ import torch.nn.functional as F
 import numpy as np
 
 from .resnet import build_backbone
+from .conv import Conv
 
-from utils.modules import Conv
-import utils.box_ops as box_ops
-from utils.loss import loss
+from utils import box_ops
+from utils import loss
 
 
 class FCOS(nn.Module):
@@ -204,17 +204,17 @@ class FCOS(nn.Module):
         ctn_pred = []
         # head
         for i, p in enumerate(features):
-            cls_head = self.cls_head(p)
-            reg_head = self.reg_head(p)
+            cls_feat = self.cls_head(p)
+            reg_feat = self.reg_head(p)
             # [B, C, H, W] -> [B, H*W, C]
-            cls_pred_i = self.cls_det(cls_head).permute(0, 2, 3, 1).reshape(B, -1, C)
+            cls_pred_i = self.cls_det(cls_feat).permute(0, 2, 3, 1).reshape(B, -1, C)
             # [B, 4, H, W] -> [B, H*W, 4]
-            reg_pred_i = self.reg_det(reg_head).permute(0, 2, 3, 1).reshape(B, -1, 4)
+            reg_pred_i = self.reg_det(reg_feat).permute(0, 2, 3, 1).reshape(B, -1, 4)
             x1y1_pred_i = (self.grid_cell[i] - reg_pred_i[..., :2].exp()) * self.strides[i] # x1y1
             x2y2_pred_i = (self.grid_cell[i] + reg_pred_i[..., 2:].exp()) * self.strides[i] # x2y2
             box_pred_i = torch.cat([x1y1_pred_i, x2y2_pred_i], dim=-1)
             # [B, 1, H, W] -> [B, H*W, 1]
-            ctn_det_i = self.ctn_det(reg_head).permute(0, 2, 3, 1).reshape(B, -1, 1)
+            ctn_det_i = self.ctn_det(reg_feat).permute(0, 2, 3, 1).reshape(B, -1, 1)
 
             cls_pred.append(cls_pred_i)
             reg_pred.append(box_pred_i)
@@ -234,7 +234,7 @@ class FCOS(nn.Module):
             giou_pred = box_ops.giou_score(x1y1x2y2_pred, x1y1x2y2_gt, batch_size=B)
 
             # compute loss
-            cls_loss, reg_loss, ctn_loss, total_loss = loss(
+            cls_loss, reg_loss, ctn_loss, total_loss = loss.loss(
                                             pred_cls=cls_pred, 
                                             pred_giou=giou_pred,
                                             pred_ctn=ctn_pred,
