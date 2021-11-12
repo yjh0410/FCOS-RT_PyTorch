@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-from backbone import *
+from .resnet import build_backbone
 
 from utils.modules import Conv
 import utils.box_ops as box_ops
@@ -27,25 +27,13 @@ class FCOS(nn.Module):
         self.trainable = trainable
         self.conf_thresh = conf_thresh
         self.nms_thresh = nms_thresh
-        self.backbone = bk
         self.freeze_bn = freeze_bn
         self.strides = [8, 16, 32, 64, 128]
         self.grid_cell = self.create_grid(img_size)
 
-        if self.backbone == 'r18':
-            print('use backbone: resnet-18', )
-            self.backbone = resnet18(pretrained=trainable, freeze_bn=freeze_bn)
-            c3, c4, c5 = 128, 256, 512
-
-        elif self.backbone == 'r50':
-            print('use backbone: resnet-50', )
-            self.backbone = resnet50(pretrained=trainable, freeze_bn=freeze_bn)
-            c3, c4, c5 = 128, 256, 512
-
-        elif self.backbone == 'r101':
-            print('use backbone: resnet-101', )
-            self.backbone = resnet101(pretrained=trainable, freeze_bn=freeze_bn)
-            c3, c4, c5 = 128, 256, 512
+        # backbone
+        self.backbone, feature_channels = build_backbone(pretrained=trainable, freeze=trainable, model=bk)
+        c3, c4, c5 = feature_channels
 
         # latter layers
         self.latter_1 = nn.Conv2d(c3, 256, kernel_size=1)
@@ -108,9 +96,10 @@ class FCOS(nn.Module):
             # generate grid cells
             ws, hs = w // s, h // s
             grid_y, grid_x = torch.meshgrid([torch.arange(hs), torch.arange(ws)])
-            grid_xy = torch.stack([grid_x, grid_y], dim=-1).float()
+            # [H, W, 2] -> [HW, 2]
+            grid_xy = torch.stack([grid_x, grid_y], dim=-1).float().view(-1, 2)
             # [1, H*W, 2]
-            grid_xy = grid_xy.reshape(1, hs*ws, 2).to(self.device)
+            grid_xy = grid_xy[None, :, :].to(self.device)
 
             total_grid_xy.append(grid_xy)
 
@@ -189,6 +178,8 @@ class FCOS(nn.Module):
 
 
     def forward(self, x, targets=None):
+        B = x.size(0)
+        C = self.num_classes
         # backbone
         c3, c4, c5 = self.backbone(x)
         
@@ -207,42 +198,31 @@ class FCOS(nn.Module):
         p7 = self.latter_5(p6)
 
         features = [p3, p4, p5, p6, p7]
-        cls_dets = []
-        reg_dets = []
-        ctn_dets = []
-
-        # head
-        for p in features:
-            cls_head = self.cls_head(p)
-            reg_head = self.reg_head(p)
-            # det
-            cls_dets.append(self.cls_det(cls_head))
-            reg_dets.append(self.reg_det(reg_head))
-            ctn_dets.append(self.ctn_det(reg_head))
 
         cls_pred = []
         reg_pred = []
         ctn_pred = []
-        B = x.size(0)
-        C = self.num_classes
-        for i, s in enumerate(self.strides):
+        # head
+        for i, p in enumerate(features):
+            cls_head = self.cls_head(p)
+            reg_head = self.reg_head(p)
             # [B, C, H, W] -> [B, H*W, C]
-            cls_det = cls_dets[i].permute(0, 2, 3, 1).reshape(B, -1, C)
+            cls_pred_i = self.cls_det(cls_head).permute(0, 2, 3, 1).reshape(B, -1, C)
             # [B, 4, H, W] -> [B, H*W, 4]
-            reg_det = reg_dets[i].permute(0, 2, 3, 1).reshape(B, -1, 4)
-            reg_det[..., :2] = (self.grid_cell[i] - reg_det[..., :2].exp()) * s # x1y1
-            reg_det[..., 2:] = (self.grid_cell[i] + reg_det[..., 2:].exp()) * s # x2y2
+            reg_pred_i = self.reg_det(reg_head).permute(0, 2, 3, 1).reshape(B, -1, 4)
+            x1y1_pred_i = (self.grid_cell[i] - reg_pred_i[..., :2].exp()) * self.strides[i] # x1y1
+            x2y2_pred_i = (self.grid_cell[i] + reg_pred_i[..., 2:].exp()) * self.strides[i] # x2y2
+            box_pred_i = torch.cat([x1y1_pred_i, x2y2_pred_i], dim=-1)
+            # [B, 1, H, W] -> [B, H*W, 1]
+            ctn_det_i = self.ctn_det(reg_head).permute(0, 2, 3, 1).reshape(B, -1, 1)
 
-            # [B, 1, H, W] -> [B, H*W]
-            ctn_det = ctn_dets[i].permute(0, 2, 3, 1).reshape(B, -1, 1)
+            cls_pred.append(cls_pred_i)
+            reg_pred.append(box_pred_i)
+            ctn_pred.append(ctn_det_i)
 
-            cls_pred.append(cls_det)
-            reg_pred.append(reg_det)
-            ctn_pred.append(ctn_det)
-        
-        cls_pred = torch.cat(cls_pred, dim=1)  # [B, HW, C]
-        reg_pred = torch.cat(reg_pred, dim=1)  # [B, HW, 4]
-        ctn_pred = torch.cat(ctn_pred, dim=1)  # [B, HW, 1]
+        cls_pred = torch.cat(cls_pred, dim=1)  # [B, N, C]
+        reg_pred = torch.cat(reg_pred, dim=1)  # [B, N, 4]
+        ctn_pred = torch.cat(ctn_pred, dim=1)  # [B, N, 1]
 
         # train
         if self.trainable:

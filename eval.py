@@ -1,41 +1,49 @@
-import torch
 import argparse
+import os
 
-from data import *
+import torch
 
-from utils.voc_evaluator import VOCAPIEvaluator
-from utils.coco_evaluator import COCOAPIEvaluator
+from evaluator.voc_evaluator import VOCAPIEvaluator
+from evaluator.coco_evaluator import COCOAPIEvaluator
+
+from data.transforms import ValTransforms
+
+from utils.misc import TestTimeAugmentation
 
 
 parser = argparse.ArgumentParser(description='FCOS-RT Evaluation')
+# basic
+parser.add_argument('-size', '--img_size', default=640, type=int,
+                    help='img_size')
+parser.add_argument('--cuda', action='store_true', default=False,
+                    help='Use cuda')
+# model
 parser.add_argument('-v', '--version', default='fcos_rt',
-                    help='fcos_rt.')
-parser.add_argument('-bk', '--backbone', default='r18',
-                    help='r18, r50, r101')
-parser.add_argument('-d', '--dataset', default='voc',
-                    help='voc, coco-val.')
-parser.add_argument('-size', '--input_size', default=640, type=int,
-                    help='input_size')
+                    help='fcos_rt')
 parser.add_argument('--trained_model', type=str,
                     default='weights/', 
                     help='Trained state_dict file path to open')
-parser.add_argument('-ct', '--conf_thresh', default=0.001, type=float,
-                    help='conf thresh')
-parser.add_argument('-nt', '--nms_thresh', default=0.60, type=float,
-                    help='nms thresh')
-parser.add_argument('--cuda', action='store_true', default=False,
-                    help='Use cuda')
+parser.add_argument('--conf_thresh', default=0.001, type=float,
+                    help='NMS threshold')
+parser.add_argument('--nms_thresh', default=0.6, type=float,
+                    help='NMS threshold')
+# dataset
+parser.add_argument('--root', default='/mnt/share/ssd2/dataset',
+                    help='data root')
+parser.add_argument('-d', '--dataset', default='coco-val',
+                    help='voc, coco-val, coco-test.')
+# TTA
+parser.add_argument('-tta', '--test_aug', action='store_true', default=False,
+                    help='use test augmentation.')
 
 args = parser.parse_args()
 
 
-
-def voc_test(model, device, input_size):
-    evaluator = VOCAPIEvaluator(data_root=VOC_ROOT,
-                                img_size=input_size,
+def voc_test(model, data_dir, device, img_size):
+    evaluator = VOCAPIEvaluator(data_root=data_dir,
+                                img_size=img_size,
                                 device=device,
-                                transform=BaseTransform(input_size),
-                                labelmap=VOC_CLASSES,
+                                transform=ValTransforms(img_size),
                                 display=True
                                 )
 
@@ -43,26 +51,26 @@ def voc_test(model, device, input_size):
     evaluator.evaluate(model)
 
 
-def coco_test(model, device, input_size, test=False):
+def coco_test(model, data_dir, device, img_size, test=False):
     if test:
         # test-dev
         print('test on test-dev 2017')
         evaluator = COCOAPIEvaluator(
-                        data_dir=coco_root,
-                        img_size=input_size,
+                        data_dir=data_dir,
+                        img_size=img_size,
                         device=device,
                         testset=True,
-                        transform=BaseTransform(input_size)
+                        transform=ValTransforms(img_size)
                         )
 
     else:
         # eval
         evaluator = COCOAPIEvaluator(
-                        data_dir=coco_root,
-                        img_size=input_size,
+                        data_dir=data_dir,
+                        img_size=img_size,
                         device=device,
                         testset=False,
-                        transform=BaseTransform(input_size)
+                        transform=ValTransforms(img_size)
                         )
 
     # COCO evaluation
@@ -74,12 +82,15 @@ if __name__ == '__main__':
     if args.dataset == 'voc':
         print('eval on voc ...')
         num_classes = 20
+        data_dir = os.path.join(args.root, 'VOCdevkit')
     elif args.dataset == 'coco-val':
         print('eval on coco-val ...')
         num_classes = 80
+        data_dir = os.path.join(args.root, 'COCO')
     elif args.dataset == 'coco-test':
         print('eval on coco-test-dev ...')
         num_classes = 80
+        data_dir = os.path.join(args.root, 'COCO')
     else:
         print('unknow dataset !! we only support voc, coco-val, coco-test !!!')
         exit(0)
@@ -103,31 +114,32 @@ if __name__ == '__main__':
     if model_name == 'fcos_rt':
         from models.fcos_rt import FCOS_RT
         backbone = args.backbone
-
+        # model
+        model = FCOS_RT(device=device, 
+                        img_size=input_size, 
+                        num_classes=num_classes, 
+                        trainable=False, 
+                        conf_thresh=args.conf_thresh,
+                        nms_thresh=args.nms_thresh,
+                        bk=backbone)
     else:
         print('Unknown model name...')
         exit(0)
 
-    # model
-    net = FCOS_RT(device=device, 
-                 img_size=input_size, 
-                 num_classes=num_classes, 
-                 trainable=False, 
-                 conf_thresh=args.conf_thresh,
-                 nms_thresh=args.nms_thresh,
-                 bk=backbone
-                 )
 
     # load weight
-    net.load_state_dict(torch.load(args.trained_model, map_location=device))
-    net.to(device).eval()
+    model.load_state_dict(torch.load(args.trained_model, map_location=device))
+    model.to(device).eval()
     print('Finished loading model!')
+
+    # TTA
+    test_aug = TestTimeAugmentation(num_classes=num_classes) if args.test_aug else None
     
     # evaluation
     with torch.no_grad():
         if args.dataset == 'voc':
-            voc_test(net, device, input_size)
+            voc_test(model, data_dir, device, args.img_size)
         elif args.dataset == 'coco-val':
-            coco_test(net, device, input_size, test=False)
+            coco_test(model, data_dir, device, args.img_size, test=False)
         elif args.dataset == 'coco-test':
-            coco_test(net, device, input_size, test=True)
+            coco_test(model, data_dir, device, args.img_size, test=True)

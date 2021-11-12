@@ -4,44 +4,43 @@
     Licensed under The MIT License [see LICENSE for details]
 """
 
-from torch.autograd import Variable
-from data import VOCDetection
+from data.voc0712 import VOCDetection, VOC_CLASSES
 import sys
 import os
 import time
 import numpy as np
 import pickle
-
-if sys.version_info[0] == 2:
-    import xml.etree.cElementTree as ET
-else:
-    import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET
 
 
 class VOCAPIEvaluator():
     """ VOC AP Evaluation class """
-    def __init__(self, data_root, img_size, device, transform, labelmap, set_type='test', year='2007', display=False):
-        self.data_root = data_root
-        self.img_size = img_size
+    def __init__(self, 
+                 data_dir, 
+                 device, 
+                 transform, 
+                 set_type='test', 
+                 year='2007', 
+                 display=False):
+        self.data_dir = data_dir
         self.device = device
         self.transform = transform
-        self.labelmap = labelmap
+        self.labelmap = VOC_CLASSES
         self.set_type = set_type
         self.year = year
         self.display = display
 
         # path
-        self.devkit_path = data_root + 'VOC' + year
-        self.annopath = os.path.join(data_root, 'VOC2007', 'Annotations', '%s.xml')
-        self.imgpath = os.path.join(data_root, 'VOC2007', 'JPEGImages', '%s.jpg')
-        self.imgsetpath = os.path.join(data_root, 'VOC2007', 'ImageSets', 'Main', set_type+'.txt')
+        self.devkit_path = os.path.join(data_dir, 'VOC' + year)
+        self.annopath = os.path.join(data_dir, 'VOC2007', 'Annotations', '%s.xml')
+        self.imgpath = os.path.join(data_dir, 'VOC2007', 'JPEGImages', '%s.jpg')
+        self.imgsetpath = os.path.join(data_dir, 'VOC2007', 'ImageSets', 'Main', set_type+'.txt')
         self.output_dir = self.get_output_dir('voc_eval/', self.set_type)
 
         # dataset
-        self.dataset = VOCDetection(root=data_root, 
+        self.dataset = VOCDetection(data_dir=data_dir, 
                                     image_sets=[('2007', set_type)],
-                                    transform=transform
-                                    )
+                                    transform=transform)
 
     def evaluate(self, net):
         net.eval()
@@ -56,18 +55,20 @@ class VOCAPIEvaluator():
         det_file = os.path.join(self.output_dir, 'detections.pkl')
 
         for i in range(num_images):
-            im, gt, h, w, scale, offset = self.dataset.pull_item(i)
-            size = np.array([[w, h, w, h]])
+            im, _ = self.dataset.pull_image(i)
+            h, w, _ = im.shape
+            scale = np.array([[w, h, w, h]])
 
-            x = Variable(im.unsqueeze(0)).to(self.device)
+            # preprocess
+            x = self.transform(im)[0]
+            x = x.unsqueeze(0).to(self.device)
+
             t0 = time.time()
             # forward
             bboxes, scores, cls_inds = net(x)
             detect_time = time.time() - t0
-            # map the boxes to original image
-            bboxes -= offset
-            bboxes /= scale
-            bboxes *= size
+            # rescale
+            bboxes *= scale
 
             for j in range(len(self.labelmap)):
                 inds = np.where(cls_inds == j)[0]

@@ -1,9 +1,9 @@
 from __future__ import division
 
 import os
-import random
 import argparse
 import time
+import random
 import numpy as np
 import cv2
 
@@ -13,18 +13,17 @@ import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from data import VOC_CLASSES, VOC_ROOT, VOCDetection
-from data import coco_root, COCODataset
-from data import config
-from data import BaseTransform, detection_collate
+from data import VOCDetection
+from data import COCODataset
+from data.transforms import TrainTransforms, ValTransforms
 
 from utils import distributed_utils
-from utils import augmentations
-from utils.augmentations import WeakAugmentation, StrongAugmentation
-from utils.coco_evaluator import COCOAPIEvaluator
-from utils.voc_evaluator import VOCAPIEvaluator
-from utils.modules import ModelEMA
+from utils import create_labels
+from utils.misc import ModelEMA, detection_collate
 from utils.com_flops_params import FLOPs_and_Params
+
+from evaluator.coco_evaluator import COCOAPIEvaluator
+from evaluator.voc_evaluator import VOCAPIEvaluator
 
 
 def parse_args():
@@ -36,10 +35,10 @@ def parse_args():
                         help='Batch size for training')
     parser.add_argument('--img_size', default=640, type=int, 
                         help='Batch size for training')
-    parser.add_argument('--max_epoch', default=12, type=int, 
-                        help='Max epoch for training')
-    parser.add_argument('--lr_epoch', default=[8, 10], type=int, 
-                        help='Max epoch for training')
+    parser.add_argument('--max_epoch', type=int, default=12,
+                        help='The upper bound of warm-up')
+    parser.add_argument('--lr_epoch', nargs='+', default=[8, 10], type=int,
+                        help='lr epoch to decay')
     parser.add_argument('--lr', default=0.01, type=float, 
                         help='learning rate')
     parser.add_argument('--schedule', default=1, type=int, 
@@ -67,25 +66,23 @@ def parse_args():
     parser.add_argument('-v', '--version', default='fcos_rt',
                         help='fcos_rt, fcos')
     parser.add_argument('-bk', '--backbone', default='r18',
-                        help='r18, r50, r101, dla34, d53')
+                        help='r18, r50, r101')
 
     # dataset
+    parser.add_argument('--root', default='/mnt/share/ssd2/dataset',
+                        help='data root')
     parser.add_argument('-d', '--dataset', default='coco',
-                        help='voc or coco')
+                        help='coco, widerface, crowdhuman')
 
     # train trick
-    parser.add_argument('--freeze_bn', action='store_true', default=False,
-                        help='freeze bn of backbone')
-    parser.add_argument('--mosaic', action='store_true', default=False,
-                        help='use mosaic augmentation')
     parser.add_argument('--ema', action='store_true', default=False,
                         help='use ema training trick')
+    parser.add_argument('--multi_scale', action='store_true', default=False,
+                        help='use multi scale training trick')
     parser.add_argument('--no_warmup', action='store_true', default=False,
                         help='do not use warmup')
     parser.add_argument('--wp_epoch', type=int,
                             default=1, help='wram-up epoch')
-    parser.add_argument('--aug', default='weak', type=str,
-                        help='weak, strong')
 
     # train DDP
     parser.add_argument('-dist', '--distributed', action='store_true', default=False,
@@ -109,10 +106,8 @@ def train():
 
     # config
     if args.version == 'fcos_rt':
-        strides = [8, 16, 32]
         scale_range = [[0, 64], [64, 128], [128, 1e5]]
     elif args.version == 'fcos':
-        strides = [8, 16, 32, 64, 128]
         scale_range = [[0, 64], [64, 128], [128, 256], [256, 512], [512, 1e5]]
         
     # set distributed
@@ -135,10 +130,6 @@ def train():
     path_to_save = os.path.join(args.save_folder, args.dataset, args.version)
     os.makedirs(path_to_save, exist_ok=True)
     
-    # mosaic augmentation
-    if args.mosaic:
-        print('use Mosaic Augmentation ...')
-
     # input size
     train_size = args.img_size
     val_size = args.img_size
@@ -147,57 +138,12 @@ def train():
     if args.ema:
         print('use EMA trick ...')
 
-    # augmentation
-    if args.aug == 'weak':
-        print('use Weak Augment ...')
-        augment = WeakAugmentation(train_size)
-    elif args.aug == 'strong':
-        print('use Strong Augment ...')
-        augment = StrongAugmentation(train_size)
-
     # dataset and evaluator
-    if args.dataset == 'voc':
-        data_dir = VOC_ROOT
-        num_classes = 20
-        dataset = VOCDetection(root=data_dir, 
-                                img_size=train_size,
-                                strides=strides,
-                                scale_range=scale_range,
-                                train=True,
-                                transform=augment,
-                                mosaic=args.mosaic
-                                )
+    dataset, evaluator, num_classes = build_dataset(args, train_size, val_size, device)
+    # dataloader
+    dataloader = build_dataloader(args, dataset, detection_collate)
 
-        evaluator = VOCAPIEvaluator(data_root=data_dir,
-                                    img_size=val_size,
-                                    device=device,
-                                    transform=BaseTransform(val_size),
-                                    labelmap=VOC_CLASSES
-                                    )
-
-    elif args.dataset == 'coco':
-        data_dir = coco_root
-        num_classes = 80
-        dataset = COCODataset(data_dir=data_dir,
-                              img_size=train_size,
-                              strides=strides,
-                              scale_range=scale_range,
-                              train=True,
-                              transform=augment,
-                              mosaic=args.mosaic)
-
-        evaluator = COCOAPIEvaluator(
-                        data_dir=data_dir,
-                        img_size=val_size,
-                        device=device,
-                        transform=BaseTransform(val_size)
-                        )
-    
-    else:
-        print('unknow dataset !! Only support voc and coco !!')
-        exit(0)
-    
-    print('Training model on:', dataset.name)
+    print('Training model on:', args.dataset)
     print('The dataset size:', len(dataset))
     print("----------------------------------------------------------")
 
@@ -210,8 +156,7 @@ def train():
                      img_size=train_size, 
                      num_classes=num_classes, 
                      trainable=True, 
-                     bk=backbone,
-                     freeze_bn=args.freeze_bn
+                     bk=backbone
                      )
     
     elif model_name == 'fcos':
@@ -222,8 +167,7 @@ def train():
                     img_size=train_size, 
                     num_classes=num_classes, 
                     trainable=True, 
-                    bk=backbone,
-                    freeze_bn=args.freeze_bn
+                    bk=backbone
                     )
     else:
         print('Unknown model name...')
@@ -237,37 +181,9 @@ def train():
         print('use SyncBatchNorm ...')
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
-    if not args.distributed:
+    if local_rank == 0:
         # compute FLOPs and Params
         FLOPs_and_Params(model=model, size=train_size)
-
-    # dataloader
-    if args.distributed and args.num_gpu > 1:
-        print('using DDP ...')
-        model = DDP(model, device_ids=[local_rank], output_device=local_rank)
-        # dataloader
-        dataloader = torch.utils.data.DataLoader(
-                        dataset=dataset, 
-                        batch_size=args.batch_size, 
-                        collate_fn=detection_collate,
-                        num_workers=args.num_workers,
-                        pin_memory=True,
-                        sampler=torch.utils.data.distributed.DistributedSampler(dataset)
-                        )
-
-    else:
-        # train on 1 GPU
-        model = model.train().to(device)
-        # dataloader
-        dataloader = torch.utils.data.DataLoader(
-                        dataset=dataset,
-                        shuffle=True,
-                        batch_size=args.batch_size, 
-                        collate_fn=detection_collate,
-                        num_workers=args.num_workers,
-                        pin_memory=True
-                        )
-
 
     # keep training
     if args.resume is not None:
@@ -339,10 +255,29 @@ def train():
                 tmp_lr = base_lr
                 set_lr(optimizer, tmp_lr)
             
-            # visualize target
+            # multi-scale trick
+            if iter_i % 10 == 0 and iter_i > 0 and args.multi_scale:
+                # randomly choose a new size
+                train_size = random.randint(10, args.img_size // 32) * 32
+                model.set_grid(train_size)
+            if args.multi_scale:
+                # interpolate
+                images = torch.nn.functional.interpolate(
+                                    input=images, 
+                                    size=train_size, 
+                                    mode='bilinear', 
+                                    align_corners=False)
+
+            # make labels
             if args.vis:
                 vis_data(images, targets, train_size)
                 continue
+            targets = create_labels.gt_creator(
+                                img_size=train_size, 
+                                num_classes=num_classes,
+                                strides=net.strides,
+                                scale_range=scale_range,
+                                targets=targets)
             
             # to device
             images = images.to(device)
@@ -410,16 +345,8 @@ def train():
                 print('No evaluator ... save model and go on training.')
                 print('Saving state, epoch:', epoch + 1)
                 if local_rank == 0:
-                    try:
-                        torch.save(model_eval.state_dict(), os.path.join(path_to_save, 
-                                    args.version + '_' + args.backbone + '_' + repr(epoch + 1) + '.pth'),
-                                    _use_new_zipfile_serialization=False
-                                    )  
-                    except:
-                        print('The version of Torch is lower than 1.7.0.')
-                        torch.save(model_eval.state_dict(), os.path.join(path_to_save, 
-                                    args.version + '_' + args.backbone + '_' + repr(epoch + 1) + '.pth')
-                                    )  
+                    torch.save(model_eval.state_dict(), os.path.join(path_to_save, 
+                                args.version + '_' + args.backbone + '_' + repr(epoch + 1) + '.pth'))  
             else:
                 print('eval ...')
 
@@ -433,22 +360,14 @@ def train():
                     # evaluate
                     evaluator.evaluate(model_eval)
 
-                    cur_map = evaluator.map if args.dataset == 'voc' else evaluator.ap50_95
+                    cur_map = evaluator.map
                     if cur_map > best_map:
                         # update best-map
                         best_map = cur_map
                         # save model
                         print('Saving state, epoch:', epoch + 1)
-                        try:
-                            torch.save(model_eval.state_dict(), os.path.join(path_to_save, 
-                                        args.version + '_' + args.backbone + '_' + repr(epoch + 1) + '_' + str(round(best_map, 2)) + '.pth'),
-                                        _use_new_zipfile_serialization=False
-                                        )  
-                        except:
-                            print('The version of Torch is lower than 1.7.0.')
-                            torch.save(model_eval.state_dict(), os.path.join(path_to_save, 
-                                        args.version + '_' + args.backbone + '_' + repr(epoch + 1) + '_' + str(round(best_map, 2)) + '.pth')
-                                        )  
+                        torch.save(model_eval.state_dict(), os.path.join(path_to_save, 
+                                    args.version + '_' + args.backbone + '_' + repr(epoch + 1) + '_' + str(round(best_map, 2)) + '.pth'))  
 
                     if args.tfboard:
                         if args.dataset == 'voc':
@@ -470,60 +389,62 @@ def train():
         tblogger.close()
 
 
-def eval(model, 
-         train_size,
-         val_size, 
-         path_to_save, 
-         epoch, 
-         best_map=-1., 
-         evaluator=None, 
-         tblogger=None, 
-         local_rank=0, 
-         ddp=False,
-         dataset='voc', 
-         model_name='fcos'):
-    # set eval mode
-    model.trainable = False
-    model.set_grid(val_size)
-    model.eval()
+def build_dataset(args, train_size, val_size, device):
+    if args.dataset == 'voc':
+        data_dir = os.path.join(args.root, 'VOCdevkit')
+        num_classes = 20
+        dataset = VOCDetection(
+                        data_dir=data_dir,
+                        transform=TrainTransforms(train_size))
 
-    if local_rank == 0:
-        if evaluator is None:
-            print('continue training ...')
-        else:
-            # evaluate
-            evaluator.evaluate(model)
+        evaluator = VOCAPIEvaluator(
+                        data_dir=data_dir,
+                        device=device,
+                        transform=ValTransforms(val_size))
 
-            cur_map = evaluator.map if dataset == 'voc' else evaluator.ap50_95
-            if cur_map > best_map:
-                # update best-map
-                best_map = cur_map
-                # save model
-                print('Saving state, epoch:', epoch + 1)
-                save_name = os.path.join(path_to_save, model_name + '_' + repr(epoch + 1) + '_' + str(round(best_map, 2)) + '.pth')
-                try:
-                    torch.save(model.state_dict(), save_name, _use_new_zipfile_serialization=False)
-                except:
-                    print('Your version of Torch is lower than 1.7.0 !')
-                    torch.save(model.state_dict(), save_name)
+    elif args.dataset == 'coco':
+        data_dir = os.path.join(args.root, 'COCO')
+        num_classes = 80
+        dataset = COCODataset(
+                    data_dir=data_dir,
+                    transform=TrainTransforms(train_size))
 
-            if tblogger is not None:
-                if dataset == 'voc':
-                    tblogger.add_scalar('07test/mAP', evaluator.map, epoch)
-                elif dataset == 'coco':
-                    tblogger.add_scalar('val/AP50_95', evaluator.ap50_95, epoch)
-                    tblogger.add_scalar('val/AP50', evaluator.ap50, epoch)
+        evaluator = COCOAPIEvaluator(
+                        data_dir=data_dir,
+                        device=device,
+                        transform=ValTransforms(val_size))
+    
+    else:
+        print('unknow dataset !! Only support voc and coco !!')
+        exit(0)
 
-    if ddp:
-        # wait for all processes to synchronize
-        dist.barrier()
+    return dataset, evaluator, num_classes
 
-    # set train mode
-    model.trainable = True
-    model.set_grid(train_size)
-    model.train()
 
-    return best_map
+def build_dataloader(args, dataset, collate_fn=None):
+    # distributed
+    if args.distributed and args.num_gpu > 1:
+        # dataloader
+        dataloader = torch.utils.data.DataLoader(
+                        dataset=dataset, 
+                        batch_size=args.batch_size, 
+                        collate_fn=collate_fn,
+                        num_workers=args.num_workers,
+                        pin_memory=True,
+                        sampler=torch.utils.data.distributed.DistributedSampler(dataset)
+                        )
+
+    else:
+        # dataloader
+        dataloader = torch.utils.data.DataLoader(
+                        dataset=dataset, 
+                        shuffle=True,
+                        batch_size=args.batch_size, 
+                        collate_fn=collate_fn,
+                        num_workers=args.num_workers,
+                        pin_memory=True
+                        )
+    return dataloader
 
 
 def set_lr(optimizer, lr):
@@ -532,23 +453,25 @@ def set_lr(optimizer, lr):
 
 
 def vis_data(images, targets, input_size, num_classes):
+    B = images.size(0)
     # vis data
     mean=(0.406, 0.456, 0.485)
     std=(0.225, 0.224, 0.229)
     mean = np.array(mean, dtype=np.float32)
     std = np.array(std, dtype=np.float32)
 
-    img = images[0].permute(1, 2, 0).cpu().numpy()[:, :, ::-1]
-    img = ((img * std + mean)*255).astype(np.uint8)
-    cv2.imwrite('1.jpg', img)
+    for bi in range(B):
+        img = images[bi].permute(1, 2, 0).cpu().numpy()[:, :, ::-1]
+        img = ((img * std + mean)*255).astype(np.uint8)
+        cv2.imwrite('1.jpg', img)
 
-    img_ = cv2.imread('1.jpg')
-    gt = targets[0] # [N, C]
-    print(gt.shape)
-    for i in range(gt.shape[0]):
-        if gt[i, :num_classes].sum() > 0.:
-            xmin, ymin, xmax, ymax = gt[i, -5:-1]
-            # print(xmin, ymin, xmax, ymax)
+        img_ = cv2.imread('1.jpg')
+        target_i = targets[bi] # [N, C]
+        bboxes = target_i['boxes']
+        labels = target_i['labels']
+        for box, cls_id in zip(bboxes, labels):
+            xmin, ymin, xmax, ymax = box
+            cls_id = int(cls_id)
             xmin *= input_size
             ymin *= input_size
             xmax *= input_size

@@ -38,14 +38,14 @@ class FocalWithLogitsLoss(nn.Module):
         return loss
 
 
-def loss(pred_cls, pred_giou, pred_ctn, label, num_classes):
+def loss(pred_cls, pred_giou, pred_ctn, target, num_classes):
     # create loss_f
     cls_loss_function = FocalWithLogitsLoss(reduction='mean')
     ctn_loss_function = nn.BCELoss(reduction='none')
     
     # groundtruth    
-    gt_cls = label[..., :num_classes]
-    gt_ctn = label[..., -1]
+    gt_cls = target[..., :num_classes]
+    gt_ctn = target[..., -1]
     gt_pos = (gt_ctn > 0.).float()
     num_pos = gt_pos.sum(-1, keepdim=True).clamp(1)
 

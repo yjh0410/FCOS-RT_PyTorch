@@ -1,14 +1,8 @@
 import json
 import tempfile
-
+import torch
 from data.coco2017 import *
-from data import *
-
-import json
-import tempfile
-
 from pycocotools.cocoeval import COCOeval
-from torch.autograd import Variable
 
 
 class COCOAPIEvaluator():
@@ -17,7 +11,7 @@ class COCOAPIEvaluator():
     All the data in the val2017 dataset are processed \
     and evaluated by COCO API.
     """
-    def __init__(self, data_dir, img_size, device, testset=False, transform=None):
+    def __init__(self, data_dir, device, testset=False, transform=None):
         """
         Args:
             data_dir (str): dataset root directory
@@ -30,28 +24,14 @@ class COCOAPIEvaluator():
                 IoU threshold of non-max supression ranging from 0 to 1.
         """
         self.testset = testset
-        if self.testset:
-            json_file='image_info_test-dev2017.json'
-            name = 'test2017'
-        else:
-            json_file='instances_val2017.json'
-            name='val2017'
-
         self.dataset = COCODataset(
-                                   data_dir=data_dir,
-                                   img_size=img_size,
-                                   json_file=json_file,
-                                   transform=None,
-                                   name=name)
-        self.dataloader = torch.utils.data.DataLoader(
-                                    self.dataset, 
-                                    batch_size=1, 
-                                    shuffle=False, 
-                                    collate_fn=detection_collate,
-                                    num_workers=0)
-        self.img_size = img_size
+                            data_dir=data_dir,
+                            image_set='val' if not testset else 'test',
+                            transform=None)
         self.transform = transform
         self.device = device
+
+        self.map = 0.
         self.ap50_95 = 0.
         self.ap50 = 0.
 
@@ -79,11 +59,10 @@ class COCOAPIEvaluator():
             # load an image
             img, id_ = self.dataset.pull_image(index)
             h, w, _ = img.shape
-            size = np.array([[w, h, w, h]])
+            scale = np.array([[w, h, w, h]])
 
             # preprocess
-            img, _, _, scale, offset = self.transform(img)
-            x = torch.from_numpy(img[:, :, (2, 1, 0)]).permute(2, 0, 1).float()
+            x = self.transform(img)[0]
             x = x.unsqueeze(0).to(self.device)
             
             id_ = int(id_)
@@ -92,10 +71,8 @@ class COCOAPIEvaluator():
             with torch.no_grad():
                 outputs = model(x)
                 bboxes, scores, cls_inds = outputs
-                # map the boxes to original image
-                bboxes -= offset
-                bboxes /= scale
-                bboxes *= size
+                # rescale
+                bboxes *= scale
 
             for i, box in enumerate(bboxes):
                 x1 = float(box[0])
@@ -118,24 +95,27 @@ class COCOAPIEvaluator():
             cocoGt = self.dataset.coco
             # workaround: temporarily write data to json file because pycocotools can't process dict in py36.
             if self.testset:
-                json.dump(data_dict, open('det_coco_2017.json', 'w'))
-                cocoDt = cocoGt.loadRes('det_coco_2017.json')
+                json.dump(data_dict, open('coco_test-dev.json', 'w'))
+                cocoDt = cocoGt.loadRes('coco_test-dev.json')
+                return -1, -1
             else:
                 _, tmp = tempfile.mkstemp()
                 json.dump(data_dict, open(tmp, 'w'))
                 cocoDt = cocoGt.loadRes(tmp)
-            cocoEval = COCOeval(self.dataset.coco, cocoDt, annType[1])
-            cocoEval.params.imgIds = ids
-            cocoEval.evaluate()
-            cocoEval.accumulate()
-            cocoEval.summarize()
+                cocoEval = COCOeval(self.dataset.coco, cocoDt, annType[1])
+                cocoEval.params.imgIds = ids
+                cocoEval.evaluate()
+                cocoEval.accumulate()
+                cocoEval.summarize()
 
-            ap50_95, ap50 = cocoEval.stats[0], cocoEval.stats[1]
-            print('ap50_95 : ', ap50_95)
-            print('ap50 : ', ap50)
-            self.ap50_95 = ap50_95
-            self.ap50 = ap50
+                ap50_95, ap50 = cocoEval.stats[0], cocoEval.stats[1]
+                print('ap50_95 : ', ap50_95)
+                print('ap50 : ', ap50)
+                self.map = ap50_95
+                self.ap50_95 = ap50_95
+                self.ap50 = ap50
 
-            return ap50_95, ap50
+                return ap50, ap50_95
         else:
-            return -1, -1
+            return 0, 0
+

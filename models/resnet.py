@@ -1,4 +1,3 @@
-from utils import modules
 import torch
 import torch.nn as nn
 import torch.utils.model_zoo as model_zoo
@@ -259,6 +258,18 @@ def resnet152(pretrained=False, freeze_bn=False, **kwargs):
             model.freeze_bn()
 
     return model
+
+
+def build_backbone(pretrained=False, freeze=False, model='r18'):
+    if model == 'r18':
+        return resnet18(pretrained=pretrained, freeze_bn=freeze), [128, 256, 512]
+    elif model == 'r34':
+        return resnet34(pretrained=pretrained, freeze_bn=freeze), [128, 256, 512]
+    elif model == 'r50':
+        return resnet50(pretrained=pretrained, freeze_bn=freeze), [512, 1024, 2048]
+    elif model == 'r101':
+        return resnet101(pretrained=pretrained, freeze_bn=freeze), [512, 1024, 2048]
+
 
 if __name__=='__main__':
     #model = torchvision.models.resnet50()
