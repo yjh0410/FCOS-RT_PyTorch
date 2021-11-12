@@ -16,8 +16,8 @@ class FCOS_RT(nn.Module):
                  img_size=640, 
                  num_classes=80, 
                  trainable=False, 
-                 conf_thresh=0.05, 
-                 nms_thresh=0.5, 
+                 conf_thresh=0.03, 
+                 nms_thresh=0.6, 
                  bk='r18'):
         super(FCOS_RT, self).__init__()
         self.device = device
