@@ -13,7 +13,7 @@ from utils.misc import TestTimeAugmentation
 
 parser = argparse.ArgumentParser(description='FCOS-RT Evaluation')
 # basic
-parser.add_argument('-size', '--img_size', default=640, type=int,
+parser.add_argument('-size', '--img_size', default=512, type=int,
                     help='img_size')
 parser.add_argument('--cuda', action='store_true', default=False,
                     help='Use cuda')

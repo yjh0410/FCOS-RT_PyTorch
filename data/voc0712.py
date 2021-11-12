@@ -184,7 +184,7 @@ class VOCDetection(data.Dataset):
 
 if __name__ == "__main__":
     from transforms import TrainTransforms, ValTransforms
-    img_size = 800
+    img_size = 512
     dataset = VOCDetection(
                 data_dir='/mnt/share/ssd2/dataset/VOCdevkit',
                 transform=TrainTransforms(img_size))

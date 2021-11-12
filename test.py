@@ -17,7 +17,7 @@ from utils.misc import TestWithAugmentation
 
 parser = argparse.ArgumentParser(description='FCOS-RT Detection')
 # basic
-parser.add_argument('-size', '--img_size', default=640, type=int,
+parser.add_argument('-size', '--img_size', default=512, type=int,
                     help='img_size')
 parser.add_argument('--show', action='store_true', default=False,
                     help='show the visulization results.')

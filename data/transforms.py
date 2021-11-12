@@ -87,7 +87,7 @@ class RandomHorizontalFlip(object):
 
 # TrainTransform
 class TrainTransforms(object):
-    def __init__(self, size=640, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
+    def __init__(self, size=512, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
         self.size = size
         self.mean = mean
         self.std = std
@@ -104,7 +104,7 @@ class TrainTransforms(object):
 
 # ValTransform
 class ValTransforms(object):
-    def __init__(self, size=640, mean=(0.406, 0.456, 0.485), std=(0.225, 0.224, 0.229)):
+    def __init__(self, size=512, mean=(0.406, 0.456, 0.485), std=(0.225, 0.224, 0.229)):
         self.size = size
         self.mean = mean
         self.std = std
