@@ -256,6 +256,8 @@ def resnet152(pretrained=False, freeze_bn=False, **kwargs):
         if freeze_bn:
             print('freeze bn ...')
             model.freeze_bn()
+            print('freeze stage 1')
+            model.freeze_stage()
 
     return model
 

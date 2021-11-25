@@ -114,13 +114,13 @@ class FCOS_RT(nn.Module):
         x2 = dets[:, 2]  #xmax
         y2 = dets[:, 3]  #ymax
 
-        areas = (x2 - x1) * (y2 - y1)                 # the size of bbox
-        order = scores.argsort()[::-1]                        # sort bounding boxes by decreasing order
+        areas = (x2 - x1) * (y2 - y1)
+        order = scores.argsort()[::-1]
 
-        keep = []                                             # store the final bounding boxes
+        keep = []
         while order.size > 0:
-            i = order[0]                                      #the index of the bbox with highest confidence
-            keep.append(i)                                    #save it to keep
+            i = order[0]
+            keep.append(i)
             # compute iou
             xx1 = np.maximum(x1[i], x1[order[1:]])
             yy1 = np.maximum(y1[i], y1[order[1:]])
@@ -131,7 +131,7 @@ class FCOS_RT(nn.Module):
             h = np.maximum(1e-28, yy2 - yy1)
             inter = w * h
 
-            ovr = inter / (areas[i] + areas[order[1:]] - inter)
+            ovr = inter / (areas[i] + areas[order[1:]] - inter + 1e-10)
             #reserve all the boundingbox whose ovr less than thresh
             inds = np.where(ovr <= self.nms_thresh)[0]
             order = order[inds + 1]
@@ -200,14 +200,14 @@ class FCOS_RT(nn.Module):
             cls_feat = self.cls_head(p)
             reg_feat = self.reg_head(p)
             # [B, C, H, W] -> [B, H*W, C]
-            cls_pred_i = self.cls_det(cls_feat).permute(0, 2, 3, 1).reshape(B, -1, C)
+            cls_pred_i = self.cls_det(cls_feat).permute(0, 2, 3, 1).contiguous().view(B, -1, C)
             # [B, 4, H, W] -> [B, H*W, 4]
-            reg_pred_i = self.reg_det(reg_feat).permute(0, 2, 3, 1).reshape(B, -1, 4)
+            reg_pred_i = self.reg_det(reg_feat).permute(0, 2, 3, 1).contiguous().view(B, -1, 4)
             x1y1_pred_i = (self.grid_cell[i] - reg_pred_i[..., :2].exp()) * self.strides[i] # x1y1
             x2y2_pred_i = (self.grid_cell[i] + reg_pred_i[..., 2:].exp()) * self.strides[i] # x2y2
             box_pred_i = torch.cat([x1y1_pred_i, x2y2_pred_i], dim=-1)
             # [B, 1, H, W] -> [B, H*W, 1]
-            ctn_det_i = self.ctn_det(reg_feat).permute(0, 2, 3, 1).reshape(B, -1, 1)
+            ctn_det_i = self.ctn_det(reg_feat).permute(0, 2, 3, 1).contiguous().view(B, -1, 1)
 
             cls_pred.append(cls_pred_i)
             reg_pred.append(box_pred_i)
@@ -220,8 +220,8 @@ class FCOS_RT(nn.Module):
         # train
         if self.trainable:
             # compute giou between pred bboxes and gt bboxes
-            x1y1x2y2_pred = (reg_pred / self.img_size).reshape(-1, 4)
-            x1y1x2y2_gt = targets[:, :, -5:-1].reshape(-1, 4)
+            x1y1x2y2_pred = (reg_pred / self.img_size).view(-1, 4)
+            x1y1x2y2_gt = targets[:, :, -5:-1].view(-1, 4)
 
             # giou
             giou_pred = box_ops.giou_score(x1y1x2y2_pred, x1y1x2y2_gt, batch_size=B)

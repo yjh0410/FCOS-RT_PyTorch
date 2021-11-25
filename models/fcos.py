@@ -118,13 +118,13 @@ class FCOS(nn.Module):
         x2 = dets[:, 2]  #xmax
         y2 = dets[:, 3]  #ymax
 
-        areas = (x2 - x1) * (y2 - y1)                 # the size of bbox
-        order = scores.argsort()[::-1]                        # sort bounding boxes by decreasing order
+        areas = (x2 - x1) * (y2 - y1)
+        order = scores.argsort()[::-1]
 
-        keep = []                                             # store the final bounding boxes
+        keep = []
         while order.size > 0:
-            i = order[0]                                      #the index of the bbox with highest confidence
-            keep.append(i)                                    #save it to keep
+            i = order[0]
+            keep.append(i)
             # compute iou
             xx1 = np.maximum(x1[i], x1[order[1:]])
             yy1 = np.maximum(y1[i], y1[order[1:]])
@@ -135,7 +135,7 @@ class FCOS(nn.Module):
             h = np.maximum(1e-28, yy2 - yy1)
             inter = w * h
 
-            ovr = inter / (areas[i] + areas[order[1:]] - inter)
+            ovr = inter / (areas[i] + areas[order[1:]] - inter + 1e-10)
             #reserve all the boundingbox whose ovr less than thresh
             inds = np.where(ovr <= self.nms_thresh)[0]
             order = order[inds + 1]

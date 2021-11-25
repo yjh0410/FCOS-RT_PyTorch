@@ -25,12 +25,13 @@ class Compose(object):
 
 
 class ToTensor(object):
-    def __call__(self, image, target):
+    def __call__(self, image, target=None):
         # to rgb
         image = image[..., (2, 1, 0)]
         image = F.to_tensor(image)
-        target["boxes"] = torch.as_tensor(target["boxes"]).float()
-        target["labels"] = torch.as_tensor(target["labels"]).long()
+        if target is not None:
+            target["boxes"] = torch.as_tensor(target["boxes"]).float()
+            target["labels"] = torch.as_tensor(target["labels"]).long()
         return image, target
 
         

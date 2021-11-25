@@ -1,7 +1,7 @@
 import json
 import tempfile
 import torch
-from data.coco2017 import *
+from data.coco import *
 from pycocotools.cocoeval import COCOeval
 
 
@@ -26,7 +26,7 @@ class COCOAPIEvaluator():
         self.testset = testset
         self.dataset = COCODataset(
                             data_dir=data_dir,
-                            image_set='val' if not testset else 'test',
+                            image_set='val2017' if not testset else 'test2017',
                             transform=None)
         self.transform = transform
         self.device = device

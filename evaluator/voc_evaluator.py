@@ -4,7 +4,7 @@
     Licensed under The MIT License [see LICENSE for details]
 """
 
-from data.voc0712 import VOCDetection, VOC_CLASSES
+from data.voc import VOCDetection, VOC_CLASSES
 import sys
 import os
 import time

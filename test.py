@@ -6,12 +6,12 @@ import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 
-from data.voc0712 import VOC_CLASSES, VOCDetection
-from data.coco2017 import coco_class_index, coco_class_labels, COCODataset
+from data.voc import VOC_CLASSES, VOCDetection
+from data.coco import coco_class_index, coco_class_labels, COCODataset
 from data import config
 from data.transforms import ValTransforms
 
-from utils.misc import TestWithAugmentation
+from utils.misc import TestTimeAugmentation
 
 
 
@@ -218,7 +218,7 @@ if __name__ == '__main__':
     print('Finished loading model!')
 
     # TTA
-    test_aug = TestWithAugmentation(num_classes=num_classes) if args.test_aug else None
+    test_aug = TestTimeAugmentation(num_classes=num_classes) if args.test_aug else None
 
     # run
     test(args=args,

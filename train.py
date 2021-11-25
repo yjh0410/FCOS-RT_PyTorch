@@ -13,8 +13,8 @@ import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from data import VOCDetection
-from data import COCODataset
+from data.voc import VOCDetection
+from data.coco import COCODataset
 from data.transforms import TrainTransforms, ValTransforms
 
 from utils import distributed_utils
@@ -183,7 +183,11 @@ def train():
 
     if local_rank == 0:
         # compute FLOPs and Params
+        model.trainable = False
+        model = model.eval()
         FLOPs_and_Params(model=model, size=train_size)
+        model.trainable = True
+        model = model.train()
 
     # keep training
     if args.resume is not None:
